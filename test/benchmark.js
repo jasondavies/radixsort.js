@@ -1,9 +1,9 @@
-var sort = require("./radixsort").sort();
+var sort = require("../radixsort").sort();
 
-var X = Float32Array;
+var X = Uint32Array;
 var a = [];
 var max = 65536;
-for (var i=0; i<max; i++) a[i] = 0xffffffff * (Math.random() - .5);
+for (var i=0; i<max; i++) a[i] = Math.floor(0xffffffff * Math.random());
 
 var start = +new Date;
 for (var i=0; i<100; i++) {

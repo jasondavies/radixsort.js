@@ -7,10 +7,11 @@
       maxRadix = 1 << radixBits,
       histograms = radixsort._histograms = new Int32Array(maxRadix * 4);
 
-  // TODO support negative and unsigned integers, and float 64.
+  // TODO support negative integers, and 64-bit floats.
   function radixsort() {
     function sort(array, sorted) {
-      var n = array.length,
+      var signed = !(array instanceof Uint32Array || array instanceof Uint16Array || array instanceof Uint8array),
+          n = array.length,
           input = new Uint32Array(array.buffer),
           inputBytes = new Uint8Array(input.buffer),
           sortedBytes = new Uint8Array((sorted = sorted || new Uint32Array(input.length)).buffer),
@@ -19,21 +20,23 @@
           i,
           radixBits = 8;
 
-      createHistograms(inputBytes, passCount);
+      createHistograms(inputBytes, passCount, signed);
 
       for (var pass=0; pass < passCount; pass++) {
         for (i=0; i<n; i++) {
           var x = inputBytes[i * passCount + pass],
               d = input[i];
-          if (pass === 0) {
-            if (inputBytes[(i + 1) * passCount - 1] >>> 7) {
-              d ^= 0xffffffff;
-              x ^= 0xff;
-            } else {
-              d ^= 0x80000000;
+          if (signed) {
+            if (pass === 0) {
+              if (inputBytes[(i + 1) * passCount - 1] >>> 7) {
+                d ^= 0xffffffff;
+                x ^= 0xff;
+              } else {
+                d ^= 0x80000000;
+              }
+            } else if (pass === passCount - 1) {
+              d ^= (x >>> 7) ? 0x80000000 : 0xffffffff;
             }
-          } else if (pass === passCount - 1) {
-            d ^= (x >>> 7) ? 0x80000000 : 0xffffffff;
           }
           sorted[++histograms[(pass << radixBits) + x]] = d;
         }
@@ -50,7 +53,7 @@
     return sort;
   }
 
-  function createHistograms(inputBytes, passCount) {
+  function createHistograms(inputBytes, passCount, signed) {
     var i,
         j,
         id,
@@ -60,7 +63,7 @@
     for (i = 0; i < n;) {
       // Check sign bit first.
       var x = inputBytes[i + passCount - 1],
-          mask = (x >>> 7) ? (x ^= 0xff, 0xff) : (x |= 0x80, 0);
+          mask = signed ? (x >>> 7) ? (x ^= 0xff, 0xff) : (x |= 0x80, 0) : 0;
       histograms[((passCount - 1) << radixBits) + x]++;
       for (j = 0; j < passCount - 1; j++) {
         x = inputBytes[i++] ^ mask;
