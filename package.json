@@ -1,0 +1,25 @@
+{
+  "name": "radixsort",
+  "version": "0.0.1",
+  "description": "Blazingly fast radix sort in JavaScript for typed arrays.",
+  "keywords": [
+    "radix sort",
+    "floating point"
+  ],
+  "homepage": "https://github.com/jasondavies/radixsort.js",
+  "author": {
+    "name": "Jason Davies",
+    "url": "http://www.jasondavies.com/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "http://github.com/jasondavies/radixsort.js.git"
+  },
+  "main": "radixsort.js",
+  "devDependencies": {
+    "vows": "0.6.0"
+  },
+  "scripts": {
+    "test": "./node_modules/vows/bin/vows"
+  }
+}
