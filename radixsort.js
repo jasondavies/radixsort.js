@@ -5,20 +5,19 @@
 
   var radixBits = 8,
       maxRadix = 1 << radixBits,
-      histograms = radixsort._histograms = new Int32Array(maxRadix * 4);
+      histograms = radixsort._histograms = new Int32Array(maxRadix * 8);
 
   // TODO support negative integers, and 64-bit floats.
   function radixsort() {
     function sort(array, sorted) {
-      var signed = !(array instanceof Uint32Array || array instanceof Uint16Array || array instanceof Uint8array),
+      var signed = !(array instanceof Uint32Array || array instanceof Uint16Array || array instanceof Uint8Array),
           n = array.length,
-          input = new Uint32Array(array.buffer),
+          input = signed ? new Uint32Array(array.buffer) : array,
           inputBytes = new Uint8Array(input.buffer),
-          sortedBytes = new Uint8Array((sorted = sorted || new Uint32Array(input.length)).buffer),
+          sortedBytes = new Uint8Array((sorted = sorted || new input.constructor(input.length)).buffer),
           passCount = array.BYTES_PER_ELEMENT,
           tmp,
-          i,
-          radixBits = 8;
+          i;
 
       createHistograms(inputBytes, passCount, signed);
 
@@ -35,7 +34,7 @@
                 d ^= 0x80000000;
               }
             } else if (pass === passCount - 1) {
-              d ^= (x >>> 7) ? 0x80000000 : 0xffffffff;
+              d ^= (signed && x >>> 7) ? 0x80000000 : 0xffffffff;
             }
           }
           sorted[++histograms[(pass << radixBits) + x]] = d;
@@ -58,12 +57,13 @@
         j,
         id,
         sum,
+        tsum,
         n = inputBytes.length;
     for (i = 0; i < maxRadix * passCount; i++) histograms[i] = 0;
     for (i = 0; i < n;) {
       // Check sign bit first.
       var x = inputBytes[i + passCount - 1],
-          mask = signed ? (x >>> 7) ? (x ^= 0xff, 0xff) : (x |= 0x80, 0) : 0;
+          mask = signed ? x >>> 7 ? (x ^= 0xff, 0xff) : (x |= 0x80, 0) : 0;
       histograms[((passCount - 1) << radixBits) + x]++;
       for (j = 0; j < passCount - 1; j++) {
         x = inputBytes[i++] ^ mask;
@@ -73,7 +73,7 @@
     }
     for (j = 0; j < passCount; j++) {
       for (i = 0, id = j << radixBits, sum = 0; i < maxRadix; i++, id++) {
-        var tsum = histograms[id] + sum;
+        tsum = histograms[id] + sum;
         histograms[id] = sum - 1;
         sum = tsum;
       }
