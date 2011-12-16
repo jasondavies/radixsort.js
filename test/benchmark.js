@@ -1,7 +1,7 @@
 var sort = require("../radixsort").sort();
 
 var X = Float32Array;
-var max = 65536;
+var max = 1 << 16;
 var ta = new X(max);
 
 for (var i=0; i<max; i++) {
