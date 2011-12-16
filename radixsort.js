@@ -7,7 +7,7 @@
       maxRadix = 1 << radixBits,
       histograms = radixsort._histograms = new Int32Array(maxRadix * 8);
 
-  // TODO support negative integers, and 64-bit floats.
+  // TODO support and 64-bit floats.
   function radixsort() {
     function sort(array, sorted) {
       var floating = array instanceof Float32Array || array instanceof Float64Array,
