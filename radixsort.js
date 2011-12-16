@@ -20,7 +20,7 @@
           tmp,
           i;
 
-      createHistograms(inputBytes, passCount, signed);
+      createHistograms(inputBytes, passCount, signed, floating);
 
       for (var pass=0; pass < passCount; pass++) {
         for (i=0; i<n; i++) {
@@ -33,13 +33,11 @@
                 x ^= 0xff;
               } else {
                 d ^= 0x80000000;
-                x ^= 0x80;
               }
             }
             if (pass === passCount - 1) {
-              if (floating) {
-                d ^= x >>> 7 ? 0x80000000 : 0xffffffff;
-              } else if (signed) x ^= 0x80;
+              if (floating) d ^= (x >>> 7) ? 0x80000000 : 0xffffffff;
+              else x ^= 0x80;
             }
           }
           sorted[++histograms[(pass << radixBits) + x]] = d;
@@ -68,7 +66,7 @@
     for (i = 0; i < n;) {
       // Check sign bit first.
       var x = inputBytes[i + passCount - 1],
-          mask = (floating && signed) ? x >>> 7 ? (x ^= 0xff, 0xff) : (x |= 0x80, 0) : 0;
+          mask = floating ? x >>> 7 ? (x ^= 0xff, 0xff) : (x |= 0x80, 0) : 0;
       if (!floating && signed) x ^= 0x80;
       histograms[((passCount - 1) << radixBits) + x]++;
       for (j = 0; j < passCount - 1; j++) {
