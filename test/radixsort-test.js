@@ -39,11 +39,37 @@ suite.addBatch({
           sorted = new Uint8Array(sort(new Uint8Array(data)));
       data.sort(function(a, b) { return a < b ? -1 : a === b ? 0 : 1; });
       deepEqual(data, sorted, Uint8Array);
+    },
+    "int32": function(sort) {
+      var data = randomInts(1e3, 32),
+          sorted = new Int32Array(sort(new Int32Array(data)));
+      data.sort(function(a, b) { return a < b ? -1 : a === b ? 0 : 1; });
+      deepEqual(data, sorted, Int32Array);
+    },
+    "int16": function(sort) {
+      var data = randomInts(1e3, 16),
+          sorted = new Int16Array(sort(new Int16Array(data)));
+      data.sort(function(a, b) { return a < b ? -1 : a === b ? 0 : 1; });
+      deepEqual(data, sorted, Int16Array);
+    },
+    "int8": function(sort) {
+      var data = randomInts(1e3, 8),
+          sorted = new Int8Array(sort(new Int8Array(data)));
+      data.sort(function(a, b) { return a < b ? -1 : a === b ? 0 : 1; });
+      deepEqual(data, sorted, Int8Array);
     }
   }
 });
 
 suite.export(module);
+
+function randomInts(n, bits) {
+  var r = [],
+      i = -1,
+      max = 1 << --bits;
+  while (++i < n) r[i] = Math.floor((Math.random() - .5) * max);
+  return r;
+}
 
 function randomUints(n, bits) {
   var r = [],
