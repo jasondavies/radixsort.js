@@ -10,9 +10,10 @@
   // TODO support negative integers, and 64-bit floats.
   function radixsort() {
     function sort(array, sorted) {
-      var signed = !(array instanceof Uint32Array || array instanceof Uint16Array || array instanceof Uint8Array),
+      var floating = array instanceof Float32Array || array instanceof Float64Array,
+          signed = !(array instanceof Uint32Array || array instanceof Uint16Array || array instanceof Uint8Array),
           n = array.length,
-          input = signed ? new Uint32Array(array.buffer) : array,
+          input = floating ? new Uint32Array(array.buffer) : array,
           inputBytes = new Uint8Array(input.buffer),
           sortedBytes = new Uint8Array((sorted = sorted || new input.constructor(input.length)).buffer),
           passCount = array.BYTES_PER_ELEMENT,
@@ -26,15 +27,19 @@
           var x = inputBytes[i * passCount + pass],
               d = input[i];
           if (signed) {
-            if (pass === 0) {
+            if (pass === 0 && floating) {
               if (inputBytes[(i + 1) * passCount - 1] >>> 7) {
                 d ^= 0xffffffff;
                 x ^= 0xff;
               } else {
                 d ^= 0x80000000;
+                x ^= 0x80;
               }
-            } else if (pass === passCount - 1) {
-              d ^= (signed && x >>> 7) ? 0x80000000 : 0xffffffff;
+            }
+            if (pass === passCount - 1) {
+              if (floating) {
+                d ^= x >>> 7 ? 0x80000000 : 0xffffffff;
+              } else if (signed) x ^= 0x80;
             }
           }
           sorted[++histograms[(pass << radixBits) + x]] = d;
@@ -52,7 +57,7 @@
     return sort;
   }
 
-  function createHistograms(inputBytes, passCount, signed) {
+  function createHistograms(inputBytes, passCount, signed, floating) {
     var i,
         j,
         id,
@@ -63,7 +68,8 @@
     for (i = 0; i < n;) {
       // Check sign bit first.
       var x = inputBytes[i + passCount - 1],
-          mask = signed ? x >>> 7 ? (x ^= 0xff, 0xff) : (x |= 0x80, 0) : 0;
+          mask = (floating && signed) ? x >>> 7 ? (x ^= 0xff, 0xff) : (x |= 0x80, 0) : 0;
+      if (!floating && signed) x ^= 0x80;
       histograms[((passCount - 1) << radixBits) + x]++;
       for (j = 0; j < passCount - 1; j++) {
         x = inputBytes[i++] ^ mask;
