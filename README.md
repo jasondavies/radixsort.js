@@ -23,5 +23,4 @@ Usage
 To Do
 -----
 
- * Support negative integers.
  * Support Float64Array.
