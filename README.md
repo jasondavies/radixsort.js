@@ -1,10 +1,10 @@
 radixsort.js
 ============
 
-Radix sort has linear time complexity, `O(kN)`, where `k` is the number of
+Radix sort has linear time complexity, *O(kN)*, where *k* is the number of
 radices per value, and `N` is the number of values.
 
-How is this possible?  The theoretical lower bound of `O(N log N)` only applies
+How is this possible?  The theoretical lower bound of *O(N log N)* only applies
 to comparison-based sorting algorithms, whereas radix sort doesn't actually
 perform any *comparisons* on the input data.
 
