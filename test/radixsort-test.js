@@ -57,7 +57,7 @@ function randomFloats(n) {
   var r = [],
       i = -1;
   while (++i < n) {
-    r[i] = Math.exp((Math.random() - .5) * 100, (Math.random() - .5) * 100);
+    r[i] = Math.exp((Math.random() - .5) * 100, (Math.random() - .5) * 100) * (Math.random() < .5 ? 1 : -1);
   }
   return r;
 }
