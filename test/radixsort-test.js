@@ -14,14 +14,12 @@ suite.addBatch({
       data.sort(function(a, b) { return a < b ? -1 : a === b ? 0 : 1; });
       deepEqual(data, sorted, Float32Array);
     },
-    /* TODO: 64-bit floats
     "float64": function(sort) {
       var data = randomFloats(1e3),
           sorted = new Float64Array(sort(new Float64Array(data)));
       data.sort(function(a, b) { return a < b ? -1 : a === b ? 0 : 1; });
       deepEqual(data, sorted, Float64Array);
     },
-    */
     "uint32": function(sort) {
       var data = randomUints(1e3, 32),
           sorted = new Uint32Array(sort(new Uint32Array(data)));

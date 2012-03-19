@@ -37,8 +37,3 @@ comparison is reasonable.
 
 Radixsort.js is roughly **2.5x** faster!  The speed difference gets even larger
 as you increase the input size.
-
-To Do
------
-
- * Support `Float64Array`.
