@@ -14,11 +14,12 @@
           n = array.length,
           input = floating ? new Uint32Array(array.buffer) : array,
           inputBytes = new Uint8Array(input.buffer),
-          sortedBytes = new Uint8Array((sorted = sorted || new input.constructor(input.length)).buffer),
           passCount = array.BYTES_PER_ELEMENT,
           f64,
           tmp,
           i;
+      sorted = sorted ? f64 ? new Uint32Array(sorted.buffer) : sorted
+          : new input.constructor(input.length);
 
       createHistograms(inputBytes, passCount, signed, floating);
 

@@ -16,7 +16,7 @@ suite.addBatch({
     },
     "float64": function(sort) {
       var data = randomFloats(1e3),
-          sorted = new Float64Array(sort(new Float64Array(data)));
+          sorted = new Float64Array(sort(new Float64Array(data), new Float64Array(data.length)));
       data.sort(function(a, b) { return a < b ? -1 : a === b ? 0 : 1; });
       deepEqual(data, sorted, Float64Array);
     },
