@@ -24,41 +24,44 @@
 
       for (var pass = 0; pass < passCount; pass++) {
         for (i = 0; i < n; i++) {
-          var x = inputBytes[i * passCount + pass],
+          var x,
               d,
               e;
           if (f64) {
-            d = input[e = i << 1];
-            e = input[e + 1];
-          } else d = input[i];
+            e = input[d = i << 1];
+            d = input[d + 1];
+            x = (pass > 3 ? d >> (pass * radixBits - 32) : e >> (pass * radixBits)) & 0xff;
+          } else {
+            e = 0;
+            d = input[i];
+            x = (d >> (pass * radixBits)) & 0xff;
+          }
           if (signed) {
-            if (pass === 0 && floating) {
-              if (inputBytes[(i + 1) * passCount - 1] >>> 7) {
-                d ^= 0xffffffff;
-                e ^= 0xffffffff;
-                x ^= 0xff;
-              } else {
-                if (f64) e ^= 0x80000000;
-                else d ^= 0x80000000;
-              }
-            }
             if (pass === passCount - 1) {
               if (floating) {
                 if (x >>> 7) {
-                  if (f64) e ^= 0x80000000;
-                  else d ^= 0x80000000;
+                  d ^= 0x80000000;
                 } else {
                   d ^= 0xffffffff;
                   e ^= 0xffffffff;
                 }
               } else x ^= 0x80;
+            } else if (pass === 0 && floating) {
+              if (d >> 31) {
+                d ^= 0xffffffff;
+                e ^= 0xffffffff;
+                x ^= 0xff;
+              } else {
+                d ^= 0x80000000;
+              }
             }
           }
           x = ++histograms[(pass << radixBits) + x];
           if (f64) {
-            sorted[x <<= 1] = d;
-            sorted[x + 1] = e;
-          } else sorted[x] = d;
+            sorted[x <<= 1] = e;
+            x++;
+          }
+          sorted[x] = d;
         }
         tmp = sorted;
         sorted = input;
