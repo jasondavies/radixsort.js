@@ -18,7 +18,7 @@
           f64,
           tmp,
           i;
-      sorted = sorted ? f64 ? new Uint32Array(sorted.buffer) : sorted
+      sorted = sorted ? floating ? new Uint32Array(sorted.buffer) : sorted
           : new input.constructor(input.length);
 
       createHistograms(inputBytes, passCount, signed, floating);
