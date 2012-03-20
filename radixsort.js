@@ -22,7 +22,8 @@
 
       createHistograms(inputBytes, passCount, signed, floating);
 
-      for (var pass = 0; pass < passCount; pass++) {
+      var maxPass = (passCount - 1) * radixBits;
+      for (var pass = 0, offset = 0; pass <= maxPass; pass += radixBits, offset += maxRadix) {
         for (i = 0; i < n; i++) {
           var x,
               d,
@@ -30,14 +31,14 @@
           if (f64) {
             e = input[d = i << 1];
             d = input[d + 1];
-            x = (pass > 3 ? d >> (pass * radixBits - 32) : e >> (pass * radixBits)) & 0xff;
+            x = (pass > 31 ? d >> (pass - 32) : e >> pass) & 0xff;
           } else {
             e = 0;
             d = input[i];
-            x = (d >> (pass * radixBits)) & 0xff;
+            x = (d >> pass) & 0xff;
           }
           if (signed) {
-            if (pass === passCount - 1) {
+            if (pass === maxPass) {
               if (floating) {
                 if (x >>> 7) {
                   d ^= 0x80000000;
@@ -56,7 +57,7 @@
               }
             }
           }
-          x = ++histograms[(pass << radixBits) + x];
+          x = ++histograms[offset + x];
           if (f64) {
             sorted[x <<= 1] = e;
             x++;
