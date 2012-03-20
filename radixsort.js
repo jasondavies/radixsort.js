@@ -67,9 +67,6 @@
         tmp = sorted;
         sorted = input;
         input = tmp;
-        tmp = sortedBytes;
-        sortedBytes = inputBytes;
-        inputBytes = tmp;
       }
       return input.buffer;
     }
