@@ -17,8 +17,7 @@ Usage
     var sorted = new Float32Array(sort(data));
 
     // You can also preallocate the auxiliary array…
-    var output = new Float32Array(data.length);
-    sort(data, output);
+    sorted = sort(data, new Float32Array(data.length));
 
 Note that radix sort modifies the input array, even though it uses an auxiliary
 array too.  In fact, the sorted result will be the input array when an even
