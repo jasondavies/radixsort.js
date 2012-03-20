@@ -16,9 +16,16 @@ Usage
 
     var sorted = new Float32Array(sort(data));
 
-    // You can also preallocate the output array…
+    // You can also preallocate the auxiliary array…
     var output = new Float32Array(data.length);
     sort(data, output);
+
+Note that radix sort modifies the input array, even though it uses an auxiliary
+array too.  In fact, the sorted result will be the input array when an even
+number of radixes are in use, which is currently always the case.
+
+The sorter always returns a buffer representing the sorted result, so you can
+pass this to the appropriate typed array constructor, as in the example above.
 
 Informal Benchmark
 ------------------
