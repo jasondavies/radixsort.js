@@ -1,6 +1,6 @@
 {
   "name": "radixsort",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Blazingly fast radix sort in JavaScript for typed arrays.",
   "keywords": [
     "radix sort",
@@ -17,7 +17,7 @@
   },
   "main": "radixsort.js",
   "devDependencies": {
-    "vows": "0.6.0"
+    "vows": "0.6.x"
   },
   "scripts": {
     "test": "./node_modules/vows/bin/vows"
