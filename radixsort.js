@@ -9,31 +9,24 @@
       histograms;
 
   function radixsort() {
-    function sort(array, sorted) {
-      var floating = array instanceof Float32Array || array instanceof Float64Array,
-          signed = !(array instanceof Uint32Array || array instanceof Uint16Array || array instanceof Uint8Array),
-          input = floating ? new Int32Array(array.buffer) : array,
-          n = input.length,
-          passCount = Math.ceil(array.BYTES_PER_ELEMENT * 8 / radixBits),
-          maxOffset = maxRadix * (passCount - 1),
-          msbMask = 1 << ((array.BYTES_PER_ELEMENT * 8 - 1) % radixBits),
-          lastMask = (msbMask << 1) - 1,
-          tmp,
-          start,
+    function sort(array, aux) {
+      var start,
           inner,
           end,
-          histogram;
-
+          histogram,
+          floating = false;
       if (array instanceof Float32Array) {
         start = startFloat32;
         inner = innerFloat32;
         end = endFloat32;
         histogram = histogramFloat32;
+        floating = true;
       } else if (array instanceof Float64Array) {
         start = startFloat64;
         inner = innerFloat64;
         end = endFloat64;
         histogram = histogramFloat64;
+        floating = true;
       } else if (array instanceof Uint32Array || array instanceof Uint16Array || array instanceof Uint8Array) {
         start = startUint;
         inner = end = innerUint;
@@ -44,8 +37,16 @@
         end = endInt;
         histogram = histogramInt;
       }
+      var input = floating ? new Int32Array(array.buffer) : array,
+          n = input.length,
+          passCount = Math.ceil(array.BYTES_PER_ELEMENT * 8 / radixBits),
+          maxOffset = maxRadix * (passCount - 1),
+          msbMask = 1 << ((array.BYTES_PER_ELEMENT * 8 - 1) % radixBits),
+          lastMask = (msbMask << 1) - 1,
+          tmp;
 
-      sorted = sorted ? floating ? new Int32Array(sorted.buffer) : sorted
+      aux = aux
+          ? floating ? new Int32Array(aux.buffer) : aux
           : new input.constructor(input.length);
 
       for (var i = 0, n = maxRadix * passCount; i < n; i++) histograms[i] = 0;
@@ -61,22 +62,23 @@
       var pass = 0;
       passCount--;
       if (passCount) {
-        start(input, sorted);
-        tmp = sorted;
-        sorted = input;
+        start(input, aux);
+        tmp = aux;
+        aux = input;
         input = tmp;
         while (++pass < passCount) {
-          inner(input, sorted, pass);
-          tmp = sorted;
-          sorted = input;
+          inner(input, aux, pass);
+          tmp = aux;
+          aux = input;
           input = tmp;
         }
       }
-      end(input, sorted, pass, msbMask);
-      return sorted.buffer;
+      end(input, aux, pass, msbMask);
+      return aux.buffer;
     }
 
     sort.radix = function(_) {
+      if (!arguments.length) return radixBits;
       maxRadix = 1 << (radixBits = +_);
       radixMask = maxRadix - 1;
       histograms = radixsort._histograms = new Int32Array(maxRadix * Math.ceil(64 / radixBits));
@@ -86,69 +88,69 @@
     return sort.radix(11);
   }
 
-  function startInt(input, sorted) {
+  function startInt(input, aux) {
     for (var i = 0, n = input.length; i < n; i++) {
       var d = input[i];
-      sorted[++histograms[d & radixMask]] = d;
+      aux[++histograms[d & radixMask]] = d;
     }
   }
 
-  function innerInt(input, sorted, pass) {
+  function innerInt(input, aux, pass) {
     for (var i = 0, n = input.length, offset = pass * maxRadix, s = pass * radixBits; i < n; i++) {
       var d = input[i];
-      sorted[++histograms[offset + (d >>> s & radixMask)]] = d;
+      aux[++histograms[offset + (d >>> s & radixMask)]] = d;
     }
   }
 
-  function endInt(input, sorted, pass, msbMask) {
+  function endInt(input, aux, pass, msbMask) {
     var lastMask = (msbMask << 1) - 1;
     for (var i = 0, n = input.length, offset = pass * maxRadix, s = pass * radixBits; i < n; i++) {
       var d = input[i];
-      sorted[++histograms[offset + (d >>> s & lastMask ^ msbMask)]] = d;
+      aux[++histograms[offset + (d >>> s & lastMask ^ msbMask)]] = d;
     }
   }
 
-  function startUint(input, sorted) {
+  function startUint(input, aux) {
     for (var i = 0, n = input.length; i < n; i++) {
       var d = input[i];
-      sorted[++histograms[d & radixMask]] = d;
+      aux[++histograms[d & radixMask]] = d;
     }
   }
 
-  function innerUint(input, sorted, pass) {
+  function innerUint(input, aux, pass) {
     for (var i = 0, n = input.length, offset = pass * maxRadix, s = pass * radixBits; i < n; i++) {
       var d = input[i],
           x = d >>> s & radixMask;
-      sorted[++histograms[offset + x]] = d;
+      aux[++histograms[offset + x]] = d;
     }
   }
 
-  function startFloat32(input, sorted) {
+  function startFloat32(input, aux) {
     for (var i = 0, n = input.length; i < n; i++) {
       var d = input[i];
       // Fast check for most-significant bit: signed-shift of a negative value results in 0xffffffff.
       d ^= (d >> 31) | 0x80000000;
-      sorted[++histograms[d & radixMask]] = d;
+      aux[++histograms[d & radixMask]] = d;
     }
   }
 
-  function innerFloat32(input, sorted, pass) {
+  function innerFloat32(input, aux, pass) {
     for (var i = 0, n = input.length, offset = pass * maxRadix, s = pass * radixBits; i < n; i++) {
       var d = input[i];
-      sorted[++histograms[offset + (d >>> s & radixMask)]] = d;
+      aux[++histograms[offset + (d >>> s & radixMask)]] = d;
     }
   }
 
-  function endFloat32(input, sorted, pass, msbMask) {
+  function endFloat32(input, aux, pass, msbMask) {
     var lastMask = (msbMask << 1) - 1;
     for (var i = 0, n = input.length, offset = pass * maxRadix, s = pass * radixBits; i < n; i++) {
       var d = input[i],
           x = (d >>> s) & lastMask;
-      sorted[++histograms[offset + x]] = d ^ (x & msbMask ? 0x80000000 : 0xffffffff);
+      aux[++histograms[offset + x]] = d ^ (x & msbMask ? 0x80000000 : 0xffffffff);
     }
   }
 
-  function startFloat64(input, sorted) {
+  function startFloat64(input, aux) {
     for (var i = 0, n = input.length; i < n; i++) {
       var e = input[i],
           d = input[++i],
@@ -156,12 +158,12 @@
       d ^= x | 0x80000000;
       e ^= x;
       x = ++histograms[e & radixMask] << 1;
-      sorted[x++] = e;
-      sorted[x] = d;
+      aux[x++] = e;
+      aux[x] = d;
     }
   }
 
-  function innerFloat64(input, sorted, pass) {
+  function innerFloat64(input, aux, pass) {
     for (var i = 0, n = input.length, offset = pass * maxRadix, s = pass * radixBits; i < n; i++) {
       var e = input[i],
           d = input[++i],
@@ -169,12 +171,12 @@
               : s >= 32 ? d >>> (s - 32)
               : (d << (32 - s)) | (e >>> s)) & radixMask;
       x = ++histograms[offset + x] << 1;
-      sorted[x++] = e;
-      sorted[x] = d;
+      aux[x++] = e;
+      aux[x] = d;
     }
   }
 
-  function endFloat64(input, sorted, pass, msbMask) {
+  function endFloat64(input, aux, pass, msbMask) {
     var lastMask = (msbMask << 1) - 1;
     for (var i = 0, n = input.length, offset = pass * maxRadix, s = pass * radixBits - 32; i < n; i++) {
       var e = input[i],
@@ -187,8 +189,8 @@
         e ^= 0xffffffff;
       }
       x = ++histograms[offset + x] << 1;
-      sorted[x++] = e;
-      sorted[x] = d;
+      aux[x++] = e;
+      aux[x] = d;
     }
   }
 
