@@ -164,13 +164,22 @@
   }
 
   function innerFloat64(input, aux, pass) {
+    var s = pass * radixBits, me = radixMask, md = 0, mt = 0, t = 32 - s;
+    if (s < 32 && s > 32 - radixBits) {
+      me = -1 >>> s & radixMask;
+      md = 0;
+      mt = -1 << t & radixMask;
+    } else if (s >= 32) {
+      s -= 32;
+      t += 32;
+      me = 0;
+      md = radixMask;
+      mt = 0;
+    }
     for (var i = 0, n = input.length, offset = pass * maxRadix, s = pass * radixBits; i < n; i++) {
       var e = input[i],
           d = input[++i],
-          x = (s <= 32 - radixBits ? e >>> s
-              : s >= 32 ? d >>> (s - 32)
-              : (d << (32 - s)) | (e >>> s)) & radixMask;
-      x = ++histograms[offset + x] << 1;
+          x = ++histograms[offset + (e >>> s & me | d >>> s & md | d << t & mt)] << 1;
       aux[x++] = e;
       aux[x] = d;
     }
