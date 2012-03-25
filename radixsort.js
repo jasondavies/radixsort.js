@@ -146,7 +146,7 @@
     for (var i = 0, n = input.length, offset = pass * maxRadix, s = pass * radixBits; i < n; i++) {
       var d = input[i],
           x = (d >>> s) & lastMask;
-      aux[++histograms[offset + x]] = d ^ (x & msbMask ? 0x80000000 : 0xffffffff);
+      aux[++histograms[offset + x]] = d ^ (~d >> 31 | 0x80000000);
     }
   }
 
@@ -154,7 +154,7 @@
     for (var i = 0, n = input.length; i < n; i++) {
       var e = input[i],
           d = input[++i],
-          x = (d >> 31);
+          x = d >> 31;
       d ^= x | 0x80000000;
       e ^= x;
       x = ++histograms[e & radixMask] << 1;
@@ -190,16 +190,11 @@
     for (var i = 0, n = input.length, offset = pass * maxRadix, s = pass * radixBits - 32; i < n; i++) {
       var e = input[i],
           d = input[++i],
-          x = d >>> s & lastMask;
-      if (x & msbMask) {
-        d ^= 0x80000000;
-      } else {
-        d ^= 0xffffffff;
-        e ^= 0xffffffff;
-      }
+          x = d >>> s & lastMask,
+          y = ~d >> 31;
       x = ++histograms[offset + x] << 1;
-      aux[x++] = e;
-      aux[x] = d;
+      aux[x++] = e ^ y;
+      aux[x] = d ^ (y | 0x80000000);
     }
   }
 

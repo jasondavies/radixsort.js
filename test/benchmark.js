@@ -1,6 +1,6 @@
 var sort = require("../radixsort").sort();
 
-var X = Float64Array;
+var X = Float32Array;
 var max = 1 << 16;
 var ta = new X(max);
 

@@ -38,8 +38,8 @@ be sorting double-precision (64-bit) numbers, as this is all JavaScript
 supports.  But 32 bits is sufficient for most geometry algorithms, so the
 comparison is reasonable.
 
- * Radixsort.js: ~**350** sorts per second.
- * JavaScript native sort: ~**26** sorts per second.
+ * Radixsort.js: ~**411** sorts per second.
+ * JavaScript native sort: ~**25** sorts per second.
 
-Radixsort.js is roughly **13.5x** faster!  The speed difference gets even larger
+Radixsort.js is roughly **16x** faster!  The speed difference gets even larger
 as you increase the input size.
