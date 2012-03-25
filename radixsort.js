@@ -129,7 +129,7 @@
     for (var i = 0, n = input.length; i < n; i++) {
       var d = input[i];
       // Fast check for most-significant bit: signed-shift of a negative value results in 0xffffffff.
-      d ^= (d >> 31) | 0x80000000;
+      d ^= d >> 31 | 0x80000000;
       aux[++histograms[d & radixMask]] = d;
     }
   }
@@ -145,7 +145,7 @@
     var lastMask = (msbMask << 1) - 1;
     for (var i = 0, n = input.length, offset = pass * maxRadix, s = pass * radixBits; i < n; i++) {
       var d = input[i],
-          x = (d >>> s) & lastMask;
+          x = d >>> s & lastMask;
       aux[++histograms[offset + x]] = d ^ (~d >> 31 | 0x80000000);
     }
   }
@@ -221,7 +221,7 @@
   function histogramFloat32(input, maxOffset, lastMask) {
     for (var i = 0, n = input.length; i < n; i++) {
       var d = input[i];
-      d ^= (d >> 31) | 0x80000000;
+      d ^= d >> 31 | 0x80000000;
       for (var j = 0, k = 0; j < maxOffset; j += maxRadix, k += radixBits) {
         histograms[j + (d >>> k & radixMask)]++;
       }
@@ -239,7 +239,7 @@
       for (var j = 0, k = 0; k <= 32 - radixBits; j += maxRadix, k += radixBits) {
         histograms[j + (e >>> k & radixMask)]++;
       }
-      histograms[j + (((d << (32 - k)) | (e >>> k)) & radixMask)]++;
+      histograms[j + ((d << (32 - k) | e >>> k) & radixMask)]++;
       for (k += radixBits - 32, j += maxRadix; j < maxOffset; j += maxRadix, k += radixBits) {
         histograms[j + (d >>> k & radixMask)]++;
       }
