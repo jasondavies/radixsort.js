@@ -246,4 +246,4 @@
       histograms[j + (d >>> k & lastMask)]++;
     }
   }
-})(typeof exports !== "undefined" ? exports : this);
+})(this);
