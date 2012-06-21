@@ -1,4 +1,4 @@
-var sort = require("../radixsort").sort;
+var sort = require("../radixsort").radixsort;
 
 var vows = require("vows"),
     assert = require("assert");

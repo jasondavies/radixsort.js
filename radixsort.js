@@ -1,7 +1,7 @@
 // Based on http://stereopsis.com/radix.html
 // Requires typed arrays.
 (function(exports) {
-  exports.sort = radixsort;
+  exports.radixsort = radixsort;
 
   var radixBits,
       maxRadix,

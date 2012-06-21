@@ -1,4 +1,4 @@
-var sort = require("../radixsort").sort();
+var sort = require("../radixsort").radixsort();
 
 var X = Float32Array;
 var max = 1 << 16;
