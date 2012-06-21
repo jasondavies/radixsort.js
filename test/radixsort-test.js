@@ -14,6 +14,14 @@ suite.addBatch({
       data.sort(ascending);
       deepEqual(data, sorted, Float32Array);
     },
+    "float32 with offset": function(sort) {
+      var data = randomFloats(1e3),
+          f = new Float32Array(data),
+          sorted = new Float32Array(sort(f.subarray(8, 16)));
+      data = data.slice(8, 16);
+      data.sort(ascending);
+      deepEqual(data, sorted, Float32Array);
+    },
     "float64": function(sort) {
       var data = randomFloats(1e3),
           sorted = new Float64Array(sort(new Float64Array(data), new Float64Array(data.length)));
@@ -97,7 +105,7 @@ function deepEqual(a, b, typedArray) {
   var n = a.length,
       i = -1,
       x = new typedArray(1); // Hack to convert to appropriate data type.
-  if (n !== b.length) return false;
+  assert.equal(n, b.length);
   while (++i < n) {
     x[0] = a[i];
     if (isNaN(x[0])) assert.isTrue(isNaN(b[i]));

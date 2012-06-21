@@ -37,7 +37,7 @@
         end = endInt;
         histogram = histogramInt;
       }
-      var input = floating ? new Int32Array(array.buffer) : array,
+      var input = floating ? new Int32Array(array.buffer, array.byteOffset, array.byteLength >> 2) : array,
           n = input.length,
           passCount = Math.ceil(array.BYTES_PER_ELEMENT * 8 / radixBits),
           maxOffset = maxRadix * (passCount - 1),
@@ -46,7 +46,7 @@
           tmp;
 
       aux = aux
-          ? floating ? new Int32Array(aux.buffer) : aux
+          ? floating ? new Int32Array(aux.buffer, aux.byteOffset, aux.byteLength >> 2) : aux
           : new input.constructor(input.length);
 
       for (var i = 0, n = maxRadix * passCount; i < n; i++) histograms[i] = 0;
