@@ -14,7 +14,7 @@ Usage
     var sort = radixsort(),
         data = new Float32Array([…]);
 
-    var sorted = new Float32Array(sort(data));
+    var sorted = sort(data);
 
     // You can also preallocate the auxiliary array…
     sorted = sort(data, new Float32Array(data.length));

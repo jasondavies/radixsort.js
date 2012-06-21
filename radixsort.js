@@ -74,7 +74,7 @@
         }
       }
       end(input, aux, pass, msbMask);
-      return aux.buffer;
+      return new array.constructor(aux.buffer, aux.byteOffset, array.length);
     }
 
     sort.radix = function(_) {

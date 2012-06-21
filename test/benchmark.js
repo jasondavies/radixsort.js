@@ -14,7 +14,7 @@ for (var i=0; i<max; i++) a[i] = ta[i];
 
 var start = +new Date;
 for (var i=0; i<100; i++) {
-  var tb = new X(sort(ta));
+  var tb = sort(ta);
 }
 console.log(1000 * 100 / (+new Date - start) + " sorts per second.");
 
