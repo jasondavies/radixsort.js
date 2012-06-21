@@ -28,6 +28,14 @@ suite.addBatch({
       data.sort(ascending);
       deepEqual(data, sorted, Float64Array);
     },
+    "float64 with offset": function(sort) {
+      var data = randomFloats(1e3),
+          f = new Float64Array(data),
+          sorted = new Float64Array(sort(f.subarray(8, 16)), 8 << 3, 8);
+      data = data.slice(8, 16);
+      data.sort(ascending);
+      deepEqual(data, sorted, Float64Array);
+    },
     "uint32": function(sort) {
       var data = randomUints(1e3, 32),
           sorted = new Uint32Array(sort(new Uint32Array(data)));
