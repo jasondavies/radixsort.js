@@ -132,8 +132,8 @@ function ascending(a, b) {
       a > b ? 1 :
       a === 0 && b === 0 ? 1 / a < 1 / b ? -1 : 1 :
       a >= b ? 0 :
-      // Native sort puts NaNs at the end, but we put JavaScript NaNs at the beginning
-      a >= a || a <= a ? 1 :
-      b >= b || b <= b ? -1 :
+      // move NaNs to tail end
+      a >= a || a <= a ? -1 :
+      b >= b || b <= b ? 1 :
       NaN;
 }
