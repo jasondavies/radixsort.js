@@ -38,7 +38,6 @@
         histogram = histogramInt;
       }
       var input = floating ? new Int32Array(array.buffer, array.byteOffset, array.byteLength >> 2) : array,
-          n = input.length,
           passCount = Math.ceil(array.BYTES_PER_ELEMENT * 8 / radixBits),
           maxOffset = maxRadix * (passCount - 1),
           msbMask = 1 << ((array.BYTES_PER_ELEMENT * 8 - 1) % radixBits),
