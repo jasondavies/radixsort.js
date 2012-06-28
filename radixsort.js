@@ -28,7 +28,7 @@
         histogram = histogramFloat64;
         floating = true;
       } else if (array instanceof Uint32Array || array instanceof Uint16Array || array instanceof Uint8Array) {
-        start = startUint;
+        start = startInt;
         inner = end = innerUint;
         histogram = histogramUint;
       } else {
@@ -106,13 +106,6 @@
     for (var i = 0, n = input.length, offset = pass * maxRadix, s = pass * radixBits; i < n; i++) {
       var d = input[i];
       aux[++histograms[offset + (d >>> s & lastMask ^ msbMask)]] = d;
-    }
-  }
-
-  function startUint(input, aux) {
-    for (var i = 0, n = input.length; i < n; i++) {
-      var d = input[i];
-      aux[++histograms[d & radixMask]] = d;
     }
   }
 
