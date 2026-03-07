@@ -10,18 +10,19 @@ perform any *comparisons* on the input data.
 
 Usage
 -----
+```javascript
+var sort = radixsort(),
+    data = new Float32Array([…]);
 
-    var sort = radixsort(),
-        data = new Float32Array([…]);
+var sorted = sort(data);
 
-    var sorted = sort(data);
-
-    // You can also preallocate the auxiliary array…
-    sorted = sort(data, new Float32Array(data.length));
+// You can also preallocate the auxiliary array…
+sorted = sort(data, new Float32Array(data.length));
+```
 
 Note that radix sort modifies the input array, even though it uses an auxiliary
 array too.  In fact, the sorted result will be the input array when an even
-number of radixes are in use, which is currently always the case.
+number of radices are in use, which is currently always the case.
 
 The sorter always returns a buffer representing the sorted result, so you can
 pass this to the appropriate typed array constructor, as in the example above.
