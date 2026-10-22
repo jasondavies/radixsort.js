@@ -22,7 +22,10 @@ function sortsPerSecond(f) {
 
 const aux = new Float32Array(n);
 console.log(`radixsort: ${sortsPerSecond(a => sort(a, aux))} sorts per second.`);
+console.log(`radixsort argsort: ${sortsPerSecond(a => sort.argsort(a))} sorts per second.`);
 console.log(`Float32Array#sort: ${sortsPerSecond(a => a.sort())} sorts per second.`);
 
-const sorted = sort(data.slice()), expected = data.slice().sort();
-console.log("correct?", sorted.every((x, i) => Object.is(x, expected[i])));
+const expected = data.slice().sort(), sorted = sort(data.slice());
+const argsorted = data.slice(), indices = sort.argsort(argsorted);
+console.log("correct?", sorted.every((x, i) => Object.is(x, expected[i]))
+    && argsorted.every((x, i) => Object.is(x, expected[i]) && Object.is(x, data[indices[i]])));
