@@ -1,26 +1,35 @@
 {
   "name": "radixsort",
-  "version": "1.0.1",
+  "version": "2.0.0",
+  "license": "BSD-3-Clause",
   "description": "Blazingly fast radix sort in JavaScript for typed arrays.",
   "keywords": [
     "radix sort",
     "floating point"
   ],
+  "type": "module",
   "homepage": "https://github.com/jasondavies/radixsort.js",
   "author": {
     "name": "Jason Davies",
-    "url": "http://www.jasondavies.com/"
+    "url": "https://www.jasondavies.com/"
   },
   "repository": {
     "type": "git",
-    "url": "http://github.com/jasondavies/radixsort.js.git"
+    "url": "git+https://github.com/jasondavies/radixsort.js.git"
   },
   "main": "radixsort.js",
-  "devDependencies": {
-    "vows": "0.6.x",
-    "uglify-js": "1.3.x"
+  "exports": {
+    ".": "./radixsort.js",
+    "./package.json": "./package.json"
   },
+  "files": [
+    "radixsort.js"
+  ],
   "scripts": {
-    "test": "./node_modules/vows/bin/vows"
+    "benchmark": "node test/benchmark.js",
+    "test": "node test/radixsort-test.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
