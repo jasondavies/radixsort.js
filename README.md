@@ -11,36 +11,83 @@ perform any *comparisons* on the input data.
 Usage
 -----
 ```javascript
-var sort = radixsort(),
-    data = new Float32Array([…]);
+import { radixsort } from 'radixsort';
 
-var sorted = sort(data);
+const sort = radixsort();
+const data = new Float32Array([…]);
 
-// You can also preallocate the auxiliary array…
-sorted = sort(data, new Float32Array(data.length));
+const sorted = sort(data);
+
+// You can also preallocate the auxiliary array, e.g. to reuse it.
+const aux = new Float32Array(data.length);
+const sorted2 = sort(otherData, aux);
 ```
 
-Note that radix sort modifies the input array, even though it uses an auxiliary
-array too.  In fact, the sorted result will be the input array when an even
-number of radices are in use, which is currently always the case.
+radixsort.js is an ES module, and requires Node.js 18 or later.
 
-The sorter always returns a buffer representing the sorted result, so you can
-pass this to the appropriate typed array constructor, as in the example above.
+Supported types are `Float32Array`, `Float64Array`, `Int32Array`,
+`Uint32Array`, `Int16Array`, `Uint16Array`, `Int8Array`, `Uint8Array` and
+`Uint8ClampedArray`, including typed arrays from other realms.  Other inputs
+throw a `TypeError`.
+
+Radix sort uses the input array as scratch space, even when given an auxiliary
+array.  The sorted result ends up in either the input or the auxiliary array,
+depending on which passes were needed, so always use the returned typed array.
+If the result is in the input array, that array is returned; otherwise a new
+typed array of the base type (e.g. `Float32Array`) viewing the auxiliary
+array's memory is returned, and the input array's contents are unspecified.
+Copy the input first if you need to keep it.
+
+The auxiliary array must have the same type as the input and be at least as
+long, and its first elements (as many as the input has) must not overlap the
+input; otherwise a `TypeError` or `RangeError` is thrown.  8-bit arrays are
+sorted in place by counting values, so they never use the auxiliary array.
+
+Values are ordered as by the native `sort`: `-0` before `+0`, and NaNs last.
+Small arrays (below 160 to 1,280 elements, depending on the type) are sorted in
+place using the native sort, which is faster at those sizes, as are arrays of
+2³⁰ or more elements, which would overflow 32-bit counts.
+
+Arrays must not be modified by other threads while being sorted.  An auxiliary
+array in a different `SharedArrayBuffer` object that aliases the same memory
+as the input can't be detected as overlapping.
+
+Sorting assumes a little-endian platform, which includes all common hardware.
+
+Upgrading from 1.x
+------------------
+
+ * radixsort.js is now an ES module, so use `import` rather than `require` or
+   a `<script>` tag.  The minified build is no longer provided.
+ * `sort.radix()` has been removed; digits are always 11 bits (8 bits for
+   16-bit types).
+ * The sorted result may now be in either array depending on the data, rather
+   than always the same one for a given type, and the returned array may be the
+   input array itself.  8-bit arrays are now sorted in place, ignoring the
+   auxiliary array.
+ * Subclasses of typed arrays are no longer preserved: unless the input array
+   itself is returned, the result is a view of the base type.
+ * NaNs now sort last, including those with the sign bit set.
+ * The auxiliary array must now be of the same type as the input, and at least
+   as long.
+ * Only the package's main module (and `package.json`) can be imported.
+ * Unsupported inputs throw a `TypeError` rather than giving incorrect results,
+   and `Uint8ClampedArray` is now supported.
 
 Informal Benchmark
 ------------------
 
 The most common usage scenario for this will probably be sorting 32-bit floats
-e.g. for geometry algorithms.  My informal benchmark repeatedly sorts an array
-of 65,536 random 32-bit floats.
+e.g. for geometry algorithms.  My informal benchmark (`npm run benchmark`)
+repeatedly sorts an array of 65,536 random 32-bit floats, comparing against the
+native `Float32Array#sort`.  On Node.js 24:
 
-Of course, the comparison is not entirely fair as JavaScript's native sort will
-be sorting double-precision (64-bit) numbers, as this is all JavaScript
-supports.  But 32 bits is sufficient for most geometry algorithms, so the
-comparison is reasonable.
+ * Radixsort.js: ~**4,300** sorts per second.
+ * Native sort: ~**340** sorts per second.
 
- * Radixsort.js: ~**411** sorts per second.
- * JavaScript native sort: ~**25** sorts per second.
-
-Radixsort.js is roughly **16x** faster!  The speed difference gets even larger
-as you increase the input size.
+Radixsort.js is roughly **13x** faster!  The speed difference gets even larger
+as you increase the input size.  The advantage is smaller for integer types,
+which the native sort handles faster: around 3–5x for large arrays of 16-bit
+and 32-bit integers, and 6–10x for 8-bit types.  Passes for digits that are the same in every value are
+skipped, so data with fewer significant bits, such as small integers or
+integer-valued floats, sorts faster still.

@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['18.0.0', 18, 20, 22, 24]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - name: Run tests
+        run: npm test
+      - name: Check package contents and installed import
+        shell: bash
+        run: |
+          pack_dir=$(mktemp -d)
+          trap 'rm -rf "$pack_dir"' EXIT
+          npm pack --ignore-scripts --json --pack-destination "$pack_dir" > "$pack_dir/pack.json"
+          node --input-type=module - "$pack_dir/pack.json" <<'JS'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+
+          const [pack] = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+          assert.deepEqual(pack.files.map(file => file.path).sort(), [
+            'LICENSE', 'README.md', 'package.json', 'radixsort.js'
+          ]);
+          JS
+          mkdir "$pack_dir/consumer"
+          cd "$pack_dir/consumer"
+          npm install --offline --ignore-scripts --no-audit --no-fund --package-lock=false "$pack_dir"/*.tgz
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { radixsort } from 'radixsort';
+
+          const sort = radixsort();
+          const data = Float64Array.from({ length: 4096 }, (_, i) => Math.sin(i) * 1e6);
+          const expected = data.slice().sort();
+          assert.deepEqual(sort(data), expected);
+          JS

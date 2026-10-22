@@ -1,30 +1,28 @@
-var sort = require("../radixsort").radixsort();
+import { performance } from 'node:perf_hooks';
+import { radixsort } from '../radixsort.js';
 
-var X = Float32Array;
-var max = 1 << 16;
-var ta = new X(max);
+const sort = radixsort();
+const n = 1 << 16;
+const rounds = 100;
+const data = Float32Array.from({ length: n }, () =>
+  Math.exp((Math.random() - .5) * 100) * (Math.random() < .5 ? 1 : -1));
 
-for (var i=0; i<max; i++) {
-  ta[i] = Math.exp((Math.random() - .5) * 100, (Math.random() - .5) * 100) * (Math.random() < .5 ? 1 : -1);
+// Sorts a fresh copy each round, since radix sort modifies its input.
+function sortsPerSecond(f) {
+  for (let i = 0; i < 10; i++) f(data.slice());
+  let elapsed = 0;
+  for (let i = 0; i < rounds; i++) {
+    const copy = data.slice();
+    const start = performance.now();
+    f(copy);
+    elapsed += performance.now() - start;
+  }
+  return Math.round(1000 * rounds / elapsed);
 }
 
-// Copy to normal array.
-var a = [];
-for (var i=0; i<max; i++) a[i] = ta[i];
+const aux = new Float32Array(n);
+console.log(`radixsort: ${sortsPerSecond(a => sort(a, aux))} sorts per second.`);
+console.log(`Float32Array#sort: ${sortsPerSecond(a => a.sort())} sorts per second.`);
 
-var start = +new Date;
-for (var i=0; i<100; i++) {
-  var tb = sort(ta);
-}
-console.log(1000 * 100 / (+new Date - start) + " sorts per second.");
-
-var start = +new Date;
-for (var i=0; i<100; i++) {
-  var b = a.slice();
-  b.sort(function(x, y) { return x > y ? 1 : x === y ? 0 : -1; });
-}
-console.log(1000 * 100 / (+new Date - start) + " sorts per second.");
-
-var correct = 1;
-for (var i=1; i<max; i++) correct &= (tb[i] >= tb[i-1]);
-console.log("correct?", correct);
+const sorted = sort(data.slice()), expected = data.slice().sort();
+console.log("correct?", sorted.every((x, i) => Object.is(x, expected[i])));
