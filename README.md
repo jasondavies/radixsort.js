@@ -107,8 +107,20 @@ native `Float32Array#sort`.  On Node.js 24:
  * Native sort: ~**340** sorts per second.
 
 Radixsort.js is roughly **13x** faster!  The speed difference gets even larger
-as you increase the input size.  The advantage is smaller for integer types,
-which the native sort handles faster: around 3–5x for large arrays of 16-bit
-and 32-bit integers, and 6–10x for 8-bit types.  Passes for digits that are the same in every value are
+as you increase the input size, as radix sort's time per element stays flat
+while the native sort's grows.  Small arrays use the native sort, so they're
+no slower:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/jasondavies/radixsort.js/v2.0.0/benchmark/sizes-dark.png">
+  <img alt="Line chart of nanoseconds per element to sort random Float32Array values, for 100 to 10 million elements. The native sort rises from about 7 to 68 ns. radixsort.js 1.0.1 starts at 49 ns for 100 elements, falling to 4.5 ns. radixsort.js 2.0 matches the native sort below 320 elements, then falls to a flat 3.1 ns from 10,000 elements." src="https://raw.githubusercontent.com/jasondavies/radixsort.js/v2.0.0/benchmark/sizes-light.png">
+</picture>
+
+The advantage is smaller for integer types, which the native sort handles
+faster: around 3–5x for large arrays of 16-bit and 32-bit integers, and 6–10x
+for 8-bit types.  Passes for digits that are the same in every value are
 skipped, so data with fewer significant bits, such as small integers or
 integer-valued floats, sorts faster still.
+
+To regenerate the chart, run `node benchmark/sizes.js` and then
+`node benchmark/chart.js`.
