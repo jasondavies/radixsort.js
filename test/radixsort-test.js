@@ -34,6 +34,23 @@ const types = [
 // Sizes on either side of every native sort threshold, and some larger ones.
 const sizes = [0, 1, 2, 100, 159, 160, 161, 223, 224, 225, 319, 320, 321, 1151, 1152, 1153, 1279, 1280, 1281, 5000];
 
+// Small sizes, and either side of the argsort insertion sort thresholds.
+const argsortSizes = [0, 1, 2, 3, 5, 8, 17, 63, 64, 65, 79, 80, 81, 1000, 5000];
+
+// Generators of values where some digits never vary, so their passes are skipped.
+const constantDigits = [
+  () => 7,
+  () => random() < .5 ? -1 : 1,
+  () => Math.floor(random() * 100),
+  () => Math.floor(random() * 100) * 128,
+  () => Math.floor(random() * 100) * 256,
+  () => Math.round((random() - .5) * 2000),
+  () => Math.floor((random() - .5) * 2 ** 22),
+  () => Math.fround((random() - .5) * 1e6),
+  () => 1 + random(),
+  () => 1 + random() / 2
+];
+
 test('radix sort', async t => {
   const sort = radixsort();
 
@@ -72,22 +89,14 @@ test('radix sort', async t => {
 
     // Inputs where some digits never vary, so their passes are skipped.
     await t.test(`${type.name} with constant digits`, () => {
-      const generators = [
-        () => 7,
-        () => random() < .5 ? -1 : 1,
-        () => Math.floor(random() * 100),
-        () => Math.floor(random() * 100) * 128,
-        () => Math.floor(random() * 100) * 256,
-        () => Math.round((random() - .5) * 2000),
-        () => Math.floor((random() - .5) * 2 ** 22),
-        () => Math.fround((random() - .5) * 1e6),
-        () => 1 + random(),
-        () => 1 + random() / 2
-      ];
-      for (const generate of generators) {
+      for (const generate of constantDigits) {
         const data = Array.from({ length: 5000 }, generate);
         assertSorted(data, sort(new type(data)), type);
       }
+    });
+
+    await t.test(`${type.name} with each bit varying alone`, () => {
+      for (const array of singleBitVariations(type)) assertSorted(Array.from(array), sort(array.slice()), type);
     });
   }
 
@@ -174,6 +183,132 @@ test('radix sort', async t => {
   });
 });
 
+test('argsort', async t => {
+  const sort = radixsort();
+
+  for (const [type, random, extremes] of types) {
+    await t.test(type.name, () => {
+      for (const n of argsortSizes) {
+        const data = random(n);
+        assertArgsorted(data, sort.argsort, type);
+      }
+    });
+
+    await t.test(`${type.name} extreme values and duplicates`, () => {
+      for (const n of [50, 150, 5000]) {
+        assertArgsorted(Array.from({ length: n }, () => extremes[Math.floor(random() * extremes.length)]), sort.argsort, type);
+        assertArgsorted(Array.from({ length: n }, () => Math.floor(random() * 4)), sort.argsort, type);
+      }
+    });
+
+    await t.test(`${type.name} with constant digits`, () => {
+      for (const generate of constantDigits) {
+        assertArgsorted(Array.from({ length: 5000 }, generate), sort.argsort, type);
+      }
+    });
+
+    await t.test(`${type.name} with each bit varying alone`, () => {
+      for (const n of [50, 2000]) {
+        for (const array of singleBitVariations(type, n)) {
+          const values = array.slice();
+          assertArgsortResult(array, values, sort.argsort(values), type);
+        }
+      }
+    });
+
+    await t.test(`${type.name} with offset`, () => {
+      const data = random(5000);
+      const array = new type(data.length + 16);
+      array.set(data, 8);
+      const values = array.subarray(8, 8 + data.length);
+      const indices = sort.argsort(values);
+      assertArgsortResult(new type(data), values, indices, type);
+      assert.deepEqual(Array.from(array.subarray(0, 8)), new Array(8).fill(0));
+      assert.deepEqual(Array.from(array.subarray(8 + data.length)), new Array(8).fill(0));
+    });
+  }
+
+  await t.test('NaNs keep their original order', () => {
+    for (const type of [Float32Array, Float64Array]) {
+      const words = type.BYTES_PER_ELEMENT / 4;
+      for (const n of [3, 10, 200, 5000]) {
+        // NaNs of both signs and several payloads, among other values or alone.
+        for (const alone of [false, true]) {
+          const array = new type(n), bits = new Uint32Array(array.buffer);
+          for (let i = 0; i < n; i++) {
+            if (alone || i % 3 === 0) {
+              // Quiet NaNs, or signalling NaNs (with a payload but no quiet bit).
+              const sign = i % 2 ? 0x80000000 : 0, payload = Math.floor(random() * 4);
+              if (words === 1) {
+                bits[i] = sign | (payload ? 0x7f800000 | payload : 0x7fc00000);
+              } else {
+                bits[i * 2 + 1] = sign | (payload ? 0x7ff00000 : 0x7ff80000);
+                bits[i * 2] = payload;
+              }
+            } else {
+              array[i] = i;
+            }
+          }
+          const signs = new Set(Array.from(array, (x, i) => x !== x ? signBit(array, i) : null).filter(x => x !== null));
+          assert.equal(signs.size, n >= 10 || alone ? 2 : signs.size);
+          const original = array.slice(), indices = sort.argsort(array);
+          assertArgsortResult(original, array, indices, type);
+          const nans = Array.from(indices).filter(i => original[i] !== original[i]);
+          assert.deepEqual(nans, nans.slice().sort((a, b) => a - b));
+        }
+      }
+    }
+  });
+
+  await t.test('typed arrays from another realm', () => {
+    const array = runInNewContext('Float64Array.from(data)', { data: randomFloats(5000) });
+    const original = Float64Array.from(array);
+    const indices = sort.argsort(array);
+    assertArgsortResult(original, new Float64Array(array.buffer), indices, Float64Array);
+  });
+
+  await t.test('subclasses', () => {
+    class Doubled extends Float32Array {
+      constructor(n) { super(n * 2); }
+    }
+    const array = new Doubled(2500), data = randomFloats(5000);
+    array.set(data);
+    const indices = sort.argsort(array);
+    assertArgsortResult(new Float32Array(data), new Float32Array(array.buffer), indices, Float32Array);
+  });
+
+  await t.test('invalid arguments', () => {
+    assert.throws(() => sort.argsort([3, 2, 1]), TypeError);
+    assert.throws(() => sort.argsort(new BigInt64Array(3)), TypeError);
+    assert.throws(() => sort.argsort({ [Symbol.toStringTag]: 'Float32Array', length: 0 }), TypeError);
+    assert.throws(() => sort.argsort(new Float32Array(5000), new Float32Array(5000)), TypeError);
+  });
+
+  await t.test('out-of-bounds arrays', { skip: !ArrayBuffer.prototype.resize && 'needs resizable buffers' }, () => {
+    const buffer = new ArrayBuffer(32, { maxByteLength: 64 });
+    const array = new Float64Array(buffer, 16);
+    buffer.resize(8);
+    assert.throws(() => sort(array), TypeError);
+    assert.throws(() => sort.argsort(array), TypeError);
+  });
+});
+
+// For each bit, an array of copies of a random value, with that bit flipped in
+// a random half of them.
+function singleBitVariations(type, n = 2000) {
+  const bytes = type.BYTES_PER_ELEMENT, arrays = [];
+  for (let bit = 0; bit < bytes * 8; bit++) {
+    const array = new type(n), view = new Uint8Array(array.buffer);
+    const base = Array.from({ length: bytes }, () => Math.floor(random() * 256));
+    for (let i = 0; i < n; i++) {
+      for (let k = 0; k < bytes; k++) view[i * bytes + k] = base[k];
+      if (random() < .5) view[i * bytes + (bit >> 3)] ^= 1 << (bit & 7);
+    }
+    arrays.push(array);
+  }
+  return arrays;
+}
+
 function signBit(array, i) {
   const bytes = new Uint8Array(array.buffer, array.byteOffset + i * array.BYTES_PER_ELEMENT, array.BYTES_PER_ELEMENT);
   return bytes[bytes.length - 1] >= 0x80;
@@ -200,6 +335,33 @@ function randomFloats(n) {
         : r < .06 ? -NaN
         : Math.exp((random() - .5) * 100) * (random() < .5 ? 1 : -1);
   });
+}
+
+// Argsorts a copy of data converted to type, and checks the result.
+function assertArgsorted(data, argsort, type) {
+  const original = new type(data), values = original.slice();
+  assertArgsortResult(original, values, argsort(values), type);
+}
+
+// Checks values is sorted like the native sort, indices[i] is the original
+// index of values[i], and equal values keep their original order.
+function assertArgsortResult(original, values, indices, type) {
+  const n = original.length;
+  assert.ok(indices instanceof Uint32Array);
+  assert.equal(indices.length, n);
+  assert.deepEqual(Array.from(values), Array.from(original.slice().sort()));
+  const bytes = type.BYTES_PER_ELEMENT;
+  const originalBytes = new Uint8Array(original.buffer, original.byteOffset, original.byteLength);
+  const valueBytes = new Uint8Array(values.buffer, values.byteOffset, values.byteLength);
+  const same = (a, i, b, j) => a.subarray(i * bytes, (i + 1) * bytes).every((x, k) => x === b[j * bytes + k]);
+  const seen = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    assert.ok(indices[i] < n && !seen[indices[i]]++, 'indices are a permutation');
+    assert.ok(same(valueBytes, i, originalBytes, indices[i]), 'values match their original index');
+    // Equal values, including any two NaNs, keep their original order.
+    const equal = same(valueBytes, i, valueBytes, i - 1) || (values[i] !== values[i] && values[i - 1] !== values[i - 1]);
+    if (i && equal) assert.ok(indices[i] > indices[i - 1], 'argsort is stable');
+  }
 }
 
 // Compares with the native sort after converting to the array's type.  Strict

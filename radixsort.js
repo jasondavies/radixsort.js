@@ -8,18 +8,22 @@ const typedArraySort = TypedArray.prototype.sort;
 // type, so its typed array accesses stay monomorphic.  flip toggles the top bit
 // of the most significant digit for signed integers.  Below the threshold
 // length, the native sort is faster than the fixed cost of clearing and summing
-// the histograms (measured with V8).
+// the histograms (measured with V8), and likewise an insertion sort for argsort
+// (small) below its threshold.
 const types = new Map([
-  [Float32Array, Int32Array, sortFloat32, 0, 320],
-  [Float64Array, Int32Array, sortFloat64, 0, 1280],
-  [Int32Array, Int32Array, sort32, 0x200, 1152],
-  [Uint32Array, Int32Array, sort32, 0, 1152],
-  [Int16Array, Uint16Array, sort16, 0x80, 224],
-  [Uint16Array, Uint16Array, sort16, 0, 224],
-  [Int8Array, Uint8Array, sort8, 0x80, 160],
-  [Uint8Array, Uint8Array, sort8, 0, 160],
-  [Uint8ClampedArray, Uint8Array, sort8, 0, 160]
-].map(([base, view, kernel, flip, threshold]) => [base.name, { base, view, kernel, flip, threshold }]));
+  [Float32Array, Int32Array, sortFloat32, argsortFloat32, 0, 320, input => insertion32(input, -1, 1 << 31), 64],
+  [Float64Array, Int32Array, sortFloat64, argsortFloat64, 0, 1280, insertion64, 80],
+  [Int32Array, Int32Array, sort32, argsort32, 0x200, 1152, input => insertion32(input, 0, 1 << 31), 64],
+  [Uint32Array, Int32Array, sort32, argsort32, 0, 1152, input => insertion32(input, 0, 0), 64],
+  [Int16Array, Uint16Array, sort16, argsort16, 0x80, 224, null, 0],
+  [Uint16Array, Uint16Array, sort16, argsort16, 0, 224, null, 0],
+  [Int8Array, Uint8Array, sort8, argsort8, 0x80, 160, null, 0],
+  [Uint8Array, Uint8Array, sort8, argsort8, 0, 160, null, 0],
+  [Uint8ClampedArray, Uint8Array, sort8, argsort8, 0, 160, null, 0]
+].map(([base, view, kernel, argsort, flip, threshold, small, smallThreshold]) => [
+  base.name,
+  { base, view, kernel, argsort, flip, threshold, small, smallThreshold }
+]));
 
 // Histogram counts and Float64 scatter indices overflow 32 bits for arrays this
 // long, so the native sort is used instead.
@@ -29,7 +33,7 @@ export function radixsort() {
   // Large enough for every 11-bit digit of a 64-bit key.
   const histograms = new Int32Array(10752);
 
-  return function sort(array, aux) {
+  function sort(array, aux) {
     const name = typedArrayName.call(array);
     const type = types.get(name);
     if (!type) throw new TypeError("unsupported array type");
@@ -54,18 +58,74 @@ export function radixsort() {
     const result = output === input ? array : new base(output.buffer, output.byteOffset, n);
     if (kernel === sortFloat32 || kernel === sortFloat64) moveNaNs(new base(result.buffer, result.byteOffset, n));
     return result;
+  }
+
+  // Sorts array in place, returning the original index of each sorted value.
+  // Equal values keep their original order.
+  sort.argsort = function(array) {
+    if (arguments.length > 1) throw new TypeError("argsort takes only an array");
+    const type = types.get(typedArrayName.call(array));
+    if (!type) throw new TypeError("unsupported array type");
+    const { base, view, argsort, flip, small, smallThreshold } = type;
+    const n = array.length;
+    if (n === 0) {
+      // Throws for detached and out-of-bounds arrays, like sort.
+      typedArraySort.call(array);
+      return new Uint32Array(0);
+    }
+    if (n >= maxLength) throw new RangeError("array is too long");
+    const { buffer, byteOffset } = array;
+    const input = new view(buffer, byteOffset, n * base.BYTES_PER_ELEMENT / view.BYTES_PER_ELEMENT);
+    const indices = n < smallThreshold ? small(input) : argsort(input, histograms, flip);
+    if (argsort === argsortFloat32) {
+      moveNaNs(new base(buffer, byteOffset, n), indices, new Uint32Array(buffer, byteOffset, n));
+    } else if (argsort === argsortFloat64) {
+      moveNaNs(new base(buffer, byteOffset, n), indices, new BigUint64Array(buffer, byteOffset, n));
+    }
+    return indices;
   };
+
+  return sort;
 }
 
 // NaNs with the sign bit set sort before everything else; move them to the end
-// to match the native sort.
-function moveNaNs(array) {
-  if (array[0] === array[0]) return;
-  let c = 1;
-  while (c < array.length && array[c] !== array[c]) c++;
-  const nans = array.slice(0, c);
+// to match the native sort, along with their indices if given.  The kernels
+// order NaNs by their bits, so for argsort, also put NaNs back in their original
+// order, moving their bits (an integer view of array) so they are kept exactly.
+function moveNaNs(array, indices, bits) {
+  const n = array.length;
+  if (array[0] !== array[0]) {
+    let c = 1;
+    while (c < n && array[c] !== array[c]) c++;
+    rotate(array, c);
+    if (indices) rotate(indices, c);
+  }
+  if (indices && array[n - 1] !== array[n - 1]) {
+    let start = n - 1;
+    while (start > 0 && array[start - 1] !== array[start - 1]) start--;
+    sortByIndex(bits, indices, start);
+  }
+}
+
+// Sorts the elements of bits and indices from start by index.
+function sortByIndex(bits, indices, start) {
+  let sorted = true;
+  for (let i = start + 1; sorted && i < indices.length; i++) sorted = indices[i - 1] < indices[i];
+  if (sorted) return;
+  const order = Array.from({ length: indices.length - start }, (_, i) => start + i)
+      .sort((a, b) => indices[a] - indices[b]);
+  const b = order.map(i => bits[i]), x = order.map(i => indices[i]);
+  for (let i = 0; i < order.length; i++) {
+    bits[start + i] = b[i];
+    indices[start + i] = x[i];
+  }
+}
+
+// Moves the first c elements of array to the end.
+function rotate(array, c) {
+  const head = array.slice(0, c);
   array.copyWithin(0, c);
-  array.set(nans, array.length - c);
+  array.set(head, array.length - c);
 }
 
 // Converts counts to the index before each bucket's first element.
@@ -319,4 +379,318 @@ function sort8(input, aux, h, flip) {
     else while (i < end) input[i++] = k;
   }
   return input;
+}
+
+// Each argsort kernel sorts input like the corresponding sort kernel, moving
+// each value's original index with it, and returns the indices.  The first
+// scatter pass reads input, the last writes the sorted values back to it, and
+// the others move keys and indices between two pairs of scratch arrays.  If the
+// first pass is skipped, the keys are copied instead; if the last is skipped,
+// they are copied back.
+
+function argsortFloat32(input, h) {
+  const n = input.length;
+  let or = 0, and = -1;
+  h.fill(0, 0, 5120);
+  for (let i = 0; i < n; i++) {
+    let k = input[i];
+    or |= k;
+    and &= k;
+    k ^= k >> 31 | 0x80000000;
+    h[k & 0x7ff]++;
+    h[2048 + (k >>> 11 & 0x7ff)]++;
+    h[4096 + (k >>> 22)]++;
+  }
+  const varying = or ^ and;
+  if (!varying) return identity(new Uint32Array(n));
+  let keys = new Int32Array(n), index = new Uint32Array(n);
+  let keys2 = new Int32Array(n), index2 = new Uint32Array(n);
+  if (varying & 0x7ff) {
+    accumulate(h, 0, 2048);
+    for (let i = 0; i < n; i++) {
+      let k = input[i];
+      k ^= k >> 31 | 0x80000000;
+      const j = ++h[k & 0x7ff];
+      keys[j] = k;
+      index[j] = i;
+    }
+  } else {
+    for (let i = 0; i < n; i++) {
+      const k = input[i];
+      keys[i] = k ^ (k >> 31 | 0x80000000);
+      index[i] = i;
+    }
+  }
+  if (varying >>> 11 & 0x7ff) {
+    accumulate(h, 2048, 4096);
+    for (let i = 0; i < n; i++) {
+      const k = keys[i], j = ++h[2048 + (k >>> 11 & 0x7ff)];
+      keys2[j] = k;
+      index2[j] = index[i];
+    }
+    [keys, keys2, index, index2] = [keys2, keys, index2, index];
+  }
+  if (varying >>> 22) {
+    accumulate(h, 4096, 5120);
+    for (let i = 0; i < n; i++) {
+      const k = keys[i], j = ++h[4096 + (k >>> 22)];
+      input[j] = k ^ (~k >> 31 | 0x80000000);
+      index2[j] = index[i];
+    }
+    return index2;
+  }
+  for (let i = 0; i < n; i++) input[i] = keys[i] ^ (~keys[i] >> 31 | 0x80000000);
+  return index;
+}
+
+function argsort32(input, h, flip) {
+  const n = input.length;
+  let or = 0, and = -1;
+  h.fill(0, 0, 5120);
+  for (let i = 0; i < n; i++) {
+    const k = input[i];
+    or |= k;
+    and &= k;
+    h[k & 0x7ff]++;
+    h[2048 + (k >>> 11 & 0x7ff)]++;
+    h[4096 + (k >>> 22 ^ flip)]++;
+  }
+  const varying = or ^ and;
+  if (!varying) return identity(new Uint32Array(n));
+  let keys = new Int32Array(n), index = new Uint32Array(n);
+  let keys2 = new Int32Array(n), index2 = new Uint32Array(n);
+  if (varying & 0x7ff) {
+    accumulate(h, 0, 2048);
+    for (let i = 0; i < n; i++) {
+      const k = input[i], j = ++h[k & 0x7ff];
+      keys[j] = k;
+      index[j] = i;
+    }
+  } else {
+    keys.set(input);
+    identity(index);
+  }
+  if (varying >>> 11 & 0x7ff) {
+    accumulate(h, 2048, 4096);
+    for (let i = 0; i < n; i++) {
+      const k = keys[i], j = ++h[2048 + (k >>> 11 & 0x7ff)];
+      keys2[j] = k;
+      index2[j] = index[i];
+    }
+    [keys, keys2, index, index2] = [keys2, keys, index2, index];
+  }
+  if (varying >>> 22) {
+    accumulate(h, 4096, 5120);
+    for (let i = 0; i < n; i++) {
+      const k = keys[i], j = ++h[4096 + (k >>> 22 ^ flip)];
+      input[j] = k;
+      index2[j] = index[i];
+    }
+    return index2;
+  }
+  input.set(keys);
+  return index;
+}
+
+function argsortFloat64(input, h) {
+  const n = input.length, m = n >> 1;
+  let or = 0, and = -1, orh = 0, andh = -1;
+  h.fill(0, 0, 10752);
+  for (let i = 0; i < n; i += 2) {
+    let k = input[i], kh = input[i + 1];
+    or |= k;
+    and &= k;
+    orh |= kh;
+    andh &= kh;
+    const x = kh >> 31;
+    kh ^= x | 0x80000000;
+    k ^= x;
+    h[k & 0x7ff]++;
+    h[2048 + (k >>> 11 & 0x7ff)]++;
+    h[4096 + ((k >>> 22 | kh << 10) & 0x7ff)]++;
+    h[6144 + (kh >>> 1 & 0x7ff)]++;
+    h[8192 + (kh >>> 12 & 0x7ff)]++;
+    h[10240 + (kh >>> 23)]++;
+  }
+  const varying = or ^ and, varyingh = orh ^ andh;
+  if (!varying && !varyingh) return identity(new Uint32Array(m));
+  let keys = new Int32Array(n), index = new Uint32Array(m);
+  let keys2 = new Int32Array(n), index2 = new Uint32Array(m);
+  if (varying & 0x7ff) {
+    accumulate(h, 0, 2048);
+    for (let i = 0; i < n; i += 2) {
+      let k = input[i], kh = input[i + 1];
+      const x = kh >> 31;
+      kh ^= x | 0x80000000;
+      k ^= x;
+      const j = ++h[k & 0x7ff];
+      keys[j << 1] = k;
+      keys[(j << 1) + 1] = kh;
+      index[j] = i >> 1;
+    }
+  } else {
+    for (let i = 0; i < n; i += 2) {
+      const x = input[i + 1] >> 31;
+      keys[i] = input[i] ^ x;
+      keys[i + 1] = input[i + 1] ^ (x | 0x80000000);
+      index[i >> 1] = i >> 1;
+    }
+  }
+  if (varying >>> 11 & 0x7ff) {
+    accumulate(h, 2048, 4096);
+    for (let i = 0; i < n; i += 2) {
+      const k = keys[i], j = ++h[2048 + (k >>> 11 & 0x7ff)];
+      keys2[j << 1] = k;
+      keys2[(j << 1) + 1] = keys[i + 1];
+      index2[j] = index[i >> 1];
+    }
+    [keys, keys2, index, index2] = [keys2, keys, index2, index];
+  }
+  if ((varying >>> 22 | varyingh << 10) & 0x7ff) {
+    accumulate(h, 4096, 6144);
+    for (let i = 0; i < n; i += 2) {
+      const k = keys[i], kh = keys[i + 1], j = ++h[4096 + ((k >>> 22 | kh << 10) & 0x7ff)];
+      keys2[j << 1] = k;
+      keys2[(j << 1) + 1] = kh;
+      index2[j] = index[i >> 1];
+    }
+    [keys, keys2, index, index2] = [keys2, keys, index2, index];
+  }
+  if (varyingh >>> 1 & 0x7ff) {
+    accumulate(h, 6144, 8192);
+    for (let i = 0; i < n; i += 2) {
+      const kh = keys[i + 1], j = ++h[6144 + (kh >>> 1 & 0x7ff)];
+      keys2[j << 1] = keys[i];
+      keys2[(j << 1) + 1] = kh;
+      index2[j] = index[i >> 1];
+    }
+    [keys, keys2, index, index2] = [keys2, keys, index2, index];
+  }
+  if (varyingh >>> 12 & 0x7ff) {
+    accumulate(h, 8192, 10240);
+    for (let i = 0; i < n; i += 2) {
+      const kh = keys[i + 1], j = ++h[8192 + (kh >>> 12 & 0x7ff)];
+      keys2[j << 1] = keys[i];
+      keys2[(j << 1) + 1] = kh;
+      index2[j] = index[i >> 1];
+    }
+    [keys, keys2, index, index2] = [keys2, keys, index2, index];
+  }
+  if (varyingh >>> 23) {
+    accumulate(h, 10240, 10752);
+    for (let i = 0; i < n; i += 2) {
+      const kh = keys[i + 1], x = ~kh >> 31, j = ++h[10240 + (kh >>> 23)];
+      input[j << 1] = keys[i] ^ x;
+      input[(j << 1) + 1] = kh ^ (x | 0x80000000);
+      index2[j] = index[i >> 1];
+    }
+    return index2;
+  }
+  for (let i = 0; i < n; i += 2) {
+    const x = ~keys[i + 1] >> 31;
+    input[i] = keys[i] ^ x;
+    input[i + 1] = keys[i + 1] ^ (x | 0x80000000);
+  }
+  return index;
+}
+
+function argsort16(input, h, flip) {
+  const n = input.length;
+  let or = 0, and = -1;
+  h.fill(0, 0, 512);
+  for (let i = 0; i < n; i++) {
+    const k = input[i];
+    or |= k;
+    and &= k;
+    h[k & 0xff]++;
+    h[256 + (k >>> 8 ^ flip)]++;
+  }
+  const varying = or ^ and;
+  if (!varying) return identity(new Uint32Array(n));
+  const keys = new Uint16Array(n), index = new Uint32Array(n), index2 = new Uint32Array(n);
+  if (varying & 0xff) {
+    accumulate(h, 0, 256);
+    for (let i = 0; i < n; i++) {
+      const k = input[i], j = ++h[k & 0xff];
+      keys[j] = k;
+      index[j] = i;
+    }
+  } else {
+    keys.set(input);
+    identity(index);
+  }
+  if (varying >>> 8) {
+    accumulate(h, 256, 512);
+    for (let i = 0; i < n; i++) {
+      const k = keys[i], j = ++h[256 + (k >>> 8 ^ flip)];
+      input[j] = k;
+      index2[j] = index[i];
+    }
+    return index2;
+  }
+  input.set(keys);
+  return index;
+}
+
+// 8-bit indices are placed by counting values, which are then written back.
+function argsort8(input, h, flip) {
+  const n = input.length, index = new Uint32Array(n);
+  h.fill(0, 0, 256);
+  for (let i = 0; i < n; i++) h[input[i] ^ flip]++;
+  accumulate(h, 0, 256);
+  for (let i = 0; i < n; i++) index[++h[input[i] ^ flip]] = i;
+  // Each bucket now ends at its histogram entry.
+  for (let b = 0, i = 0; b < 256; b++) {
+    const k = b ^ flip, end = h[b] + 1;
+    if (end - i > 64) input.fill(k, i, i = end);
+    else while (i < end) input[i++] = k;
+  }
+  return index;
+}
+
+// Stable insertion sorts for short arrays, returning the original indices.  For
+// 32-bit values, the keys k ^ (k >> 31 & a | b) are compared as unsigned
+// integers, where a and b convert floats or signed integers as for the kernels.
+function insertion32(input, a, b) {
+  const n = input.length, index = new Uint32Array(n);
+  for (let i = 0; i < n; i++) {
+    const k = input[i], key = (k ^ (k >> 31 & a | b)) >>> 0;
+    let j = i - 1;
+    for (; j >= 0; j--) {
+      const x = input[j];
+      if ((x ^ (x >> 31 & a | b)) >>> 0 <= key) break;
+      input[j + 1] = x;
+      index[j + 1] = index[j];
+    }
+    input[j + 1] = k;
+    index[j + 1] = i;
+  }
+  return index;
+}
+
+// Float64 values are pairs of (low, high) words, converted to keys as in
+// sortFloat32 and compared high word first.
+function insertion64(input) {
+  const n = input.length >> 1, index = new Uint32Array(n);
+  for (let i = 0; i < n; i++) {
+    const k = input[2 * i], kh = input[2 * i + 1], x = kh >> 31;
+    const high = (kh ^ (x | 0x80000000)) >>> 0, low = (k ^ x) >>> 0;
+    let j = i - 1;
+    for (; j >= 0; j--) {
+      const yl = input[2 * j], yh = input[2 * j + 1], y = yh >> 31, h = (yh ^ (y | 0x80000000)) >>> 0;
+      if (h < high || h === high && (yl ^ y) >>> 0 <= low) break;
+      input[2 * j + 2] = yl;
+      input[2 * j + 3] = yh;
+      index[j + 1] = index[j];
+    }
+    input[2 * j + 2] = k;
+    input[2 * j + 3] = kh;
+    index[j + 1] = i;
+  }
+  return index;
+}
+
+function identity(index) {
+  for (let i = 0; i < index.length; i++) index[i] = i;
+  return index;
 }

@@ -23,6 +23,24 @@ const aux = new Float32Array(data.length);
 const sorted2 = sort(otherData, aux);
 ```
 
+To sort associated data too, use `argsort`.  This sorts the array in place,
+and returns a `Uint32Array` of the original index of each sorted value, so you
+can reorder anything else to match:
+
+```javascript
+const points = [[10, 10], [25, 7], [15, 12], [12, 16]];
+const xs = new Float64Array(points.map(p => p[0]));
+
+const indices = sort.argsort(xs); // [0, 3, 2, 1]
+// xs is now [10, 12, 15, 25]
+
+const sortedPoints = Array.from(indices, i => points[i]);
+```
+
+The order is stable: equal values, including any NaNs, keep their original
+order.  Values are ordered as by `sort`, and the same types are supported.
+Arrays of 2³⁰ or more elements throw a `RangeError`.
+
 radixsort.js is an ES module, and requires Node.js 18 or later.
 
 Supported types are `Float32Array`, `Float64Array`, `Int32Array`,
@@ -73,6 +91,8 @@ Upgrading from 1.x
  * Only the package's main module (and `package.json`) can be imported.
  * Unsupported inputs throw a `TypeError` rather than giving incorrect results,
    and `Uint8ClampedArray` is now supported.
+ * New: `sort.argsort()` sorts values along with their original indices, for
+   sorting associated data.
 
 Informal Benchmark
 ------------------
@@ -83,6 +103,7 @@ repeatedly sorts an array of 65,536 random 32-bit floats, comparing against the
 native `Float32Array#sort`.  On Node.js 24:
 
  * Radixsort.js: ~**4,300** sorts per second.
+ * Radixsort.js `argsort`: ~**3,000** sorts per second.
  * Native sort: ~**340** sorts per second.
 
 Radixsort.js is roughly **13x** faster!  The speed difference gets even larger
