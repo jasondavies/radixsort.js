@@ -41,6 +41,16 @@ The order is stable: equal values, including any NaNs, keep their original
 order.  Values are ordered as by `sort`, and the same types are supported.
 Arrays of 2³⁰ or more elements throw a `RangeError`.
 
+To reuse an index array between calls, pass it as the second argument: a
+`Uint32Array` at least as long as the array, not overlapping it.  The indices
+are written to its first elements, and it's returned if it's the same length,
+or otherwise a view of its first elements:
+
+```javascript
+const indices = new Uint32Array(xs.length);
+sort.argsort(xs, indices);
+```
+
 radixsort.js is an ES module, and requires Node.js 18 or later.
 
 Supported types are `Float32Array`, `Float64Array`, `Int32Array`,

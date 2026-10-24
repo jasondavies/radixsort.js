@@ -1,6 +1,6 @@
 {
   "name": "radixsort",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "license": "BSD-3-Clause",
   "description": "Blazingly fast radix sort in JavaScript for typed arrays.",
   "keywords": [

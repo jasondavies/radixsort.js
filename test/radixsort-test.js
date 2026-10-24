@@ -277,11 +277,49 @@ test('argsort', async t => {
     assertArgsortResult(new Float32Array(data), new Float32Array(array.buffer), indices, Float32Array);
   });
 
+  await t.test('writes to a given indices array', () => {
+    for (const [type, random] of types) {
+      for (const n of [0, 50, 5000]) {
+        const data = random(n);
+        // The same length: indices itself is returned.
+        const original = new type(data), values = original.slice(), indices = new Uint32Array(n);
+        assert.equal(sort.argsort(values, indices), indices);
+        assertArgsortResult(original, values, indices, type);
+        // Longer: a view of its first elements is returned, and the rest is untouched.
+        const longer = new Uint32Array(n + 3).fill(7), values2 = original.slice();
+        const result = sort.argsort(values2, longer);
+        assert.equal(result.buffer, longer.buffer);
+        assertArgsortResult(original, values2, result, type);
+        assert.deepEqual(Array.from(longer.subarray(n)), [7, 7, 7]);
+      }
+    }
+  });
+
+  await t.test('results are independent of later calls', () => {
+    const first = new Float64Array(randomFloats(5000)), firstOriginal = first.slice();
+    const indices = sort.argsort(first), copy = indices.slice();
+    sort.argsort(new Float64Array(randomFloats(5000)));
+    sort.argsort(new Float64Array(randomFloats(20000)));
+    assert.deepEqual(indices, copy);
+    assertArgsortResult(firstOriginal, first, indices, Float64Array);
+  });
+
   await t.test('invalid arguments', () => {
     assert.throws(() => sort.argsort([3, 2, 1]), TypeError);
     assert.throws(() => sort.argsort(new BigInt64Array(3)), TypeError);
     assert.throws(() => sort.argsort({ [Symbol.toStringTag]: 'Float32Array', length: 0 }), TypeError);
-    assert.throws(() => sort.argsort(new Float32Array(5000), new Float32Array(5000)), TypeError);
+    const array = new Float32Array(randomFloats(5000));
+    assert.throws(() => sort.argsort(array, new Int32Array(5000)), TypeError);
+    assert.throws(() => sort.argsort(array, Array.from({ length: 5000 })), TypeError);
+    assert.throws(() => sort.argsort(array, new Uint32Array(4999)), RangeError);
+    assert.throws(() => sort.argsort(array, new Uint32Array(5000), null), TypeError);
+    // Indices sharing memory with the array, overlapping or not.
+    const buffer = new ArrayBuffer(40000);
+    assert.throws(() => sort.argsort(new Float32Array(buffer, 0, 5000), new Uint32Array(buffer, 16000, 5000)), RangeError);
+    assert.throws(() => sort.argsort(new Float32Array(buffer, 16000, 5000), new Uint32Array(buffer, 0, 5000)), RangeError);
+    const data = randomFloats(5000), values = new Float32Array(buffer, 0, 5000);
+    values.set(data);
+    assertArgsortResult(new Float32Array(data), values, sort.argsort(values, new Uint32Array(buffer, 20000, 5000)), Float32Array);
   });
 
   await t.test('out-of-bounds arrays', { skip: !ArrayBuffer.prototype.resize && 'needs resizable buffers' }, () => {

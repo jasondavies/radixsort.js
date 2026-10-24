@@ -36,6 +36,7 @@ const maxLength = 2 ** 30;
 export function radixsort() {
   // Large enough for every 11-bit digit of a 64-bit key.
   const histograms = new Int32Array(10752);
+  const scratch = createScratch();
 
   function sort(array, aux) {
     const name = typedArrayName.call(array);
@@ -66,25 +67,40 @@ export function radixsort() {
     return result;
   }
 
-  // Sorts array in place, returning the original index of each sorted value.
-  // Equal values keep their original order.
-  sort.argsort = function(array) {
-    if (arguments.length > 1) throw new TypeError("argsort takes only an array");
+  // Sorts array in place, returning the original index of each sorted value,
+  // written to indices if given.  Equal values keep their original order.
+  sort.argsort = function(array, indices) {
+    if (arguments.length > 2) throw new TypeError("argsort takes an array and optional indices");
     const type = types.get(typedArrayName.call(array));
     if (!type) throw new TypeError("unsupported array type");
     const { base, view, argsortKernel, flip, insertion, insertionThreshold, bits } = type;
-    const n = array.length;
+    // Read the length once, in case a shared buffer grows during the call.
+    const n = array.length, bytes = n * base.BYTES_PER_ELEMENT;
+    let result;
+    if (indices != null) {
+      if (typedArrayName.call(indices) !== "Uint32Array") throw new TypeError("indices must be a Uint32Array");
+      if (indices.length < n) throw new RangeError("indices is shorter than array");
+      if (indices.buffer === array.buffer
+          && indices.byteOffset < array.byteOffset + bytes
+          && array.byteOffset < indices.byteOffset + n * 4) {
+        throw new RangeError("indices overlaps array");
+      }
+      result = new Uint32Array(indices.buffer, indices.byteOffset, n);
+    } else {
+      result = new Uint32Array(n);
+    }
     if (n === 0) {
       // Throws for detached and out-of-bounds arrays, like sort.
       typedArraySort.call(array);
-      return new Uint32Array(0);
+    } else {
+      if (n >= maxLength) throw new RangeError("array is too long");
+      const { buffer, byteOffset } = array;
+      const input = new view(buffer, byteOffset, bytes / view.BYTES_PER_ELEMENT);
+      if (n < insertionThreshold) insertion(input, result);
+      else argsortKernel(input, result, histograms, flip, scratch);
+      if (bits) moveNaNs(new base(buffer, byteOffset, n), result, new bits(buffer, byteOffset, n));
     }
-    if (n >= maxLength) throw new RangeError("array is too long");
-    const { buffer, byteOffset } = array;
-    const input = new view(buffer, byteOffset, n * base.BYTES_PER_ELEMENT / view.BYTES_PER_ELEMENT);
-    const indices = n < insertionThreshold ? insertion(input) : argsortKernel(input, histograms, flip);
-    if (bits) moveNaNs(new base(buffer, byteOffset, n), indices, new bits(buffer, byteOffset, n));
-    return indices;
+    return indices != null && indices.length === n ? indices : result;
   };
 
   return sort;
@@ -407,17 +423,17 @@ function sort8(input, aux, h, flip) {
 }
 
 // Each argsort kernel sorts input like the corresponding sort kernel, moving
-// each value's original index with it, and returns the indices.  The first
-// scatter pass reads input, the last writes the sorted values back to it, and
-// the others move keys and indices between two pairs of scratch arrays.  If the
-// first pass is skipped, the keys are copied instead; if the last is skipped,
-// they are copied back.
+// each value's original index with it, and writes the indices to result.  The
+// first scatter pass reads input, the last writes the sorted values back to it
+// and the indices to result, and the others move keys and indices between two
+// pairs of scratch arrays.  If the first pass is skipped, the keys are copied
+// instead; if the last is skipped, they are copied back.
 
-function argsortFloat32(input, h) {
+function argsortFloat32(input, result, h, flip, scratch) {
   const n = input.length, varying = histogramFloat32(input, h);
-  if (!varying) return identity(new Uint32Array(n));
-  let keys = new Int32Array(n), index = new Uint32Array(n);
-  let keys2 = new Int32Array(n), index2 = new Uint32Array(n);
+  if (!varying) return identity(result);
+  let keys = scratch(0, Int32Array, n), keys2 = scratch(1, Int32Array, n);
+  let index = scratch(2, Uint32Array, n), index2 = scratch(3, Uint32Array, n);
   if (varying & 0x7ff) {
     accumulate(h, 0, 2048);
     for (let i = 0; i < n; i++) {
@@ -448,19 +464,20 @@ function argsortFloat32(input, h) {
     for (let i = 0; i < n; i++) {
       const k = keys[i], j = ++h[4096 + (k >>> 22)];
       input[j] = k ^ (~k >> 31 | 0x80000000);
-      index2[j] = index[i];
+      result[j] = index[i];
     }
-    return index2;
+    return result;
   }
   for (let i = 0; i < n; i++) input[i] = keys[i] ^ (~keys[i] >> 31 | 0x80000000);
-  return index;
+  result.set(index);
+  return result;
 }
 
-function argsort32(input, h, flip) {
+function argsort32(input, result, h, flip, scratch) {
   const n = input.length, varying = histogram32(input, h, flip);
-  if (!varying) return identity(new Uint32Array(n));
-  let keys = new Int32Array(n), index = new Uint32Array(n);
-  let keys2 = new Int32Array(n), index2 = new Uint32Array(n);
+  if (!varying) return identity(result);
+  let keys = scratch(0, Int32Array, n), keys2 = scratch(1, Int32Array, n);
+  let index = scratch(2, Uint32Array, n), index2 = scratch(3, Uint32Array, n);
   if (varying & 0x7ff) {
     accumulate(h, 0, 2048);
     for (let i = 0; i < n; i++) {
@@ -486,20 +503,21 @@ function argsort32(input, h, flip) {
     for (let i = 0; i < n; i++) {
       const k = keys[i], j = ++h[4096 + (k >>> 22 ^ flip)];
       input[j] = k;
-      index2[j] = index[i];
+      result[j] = index[i];
     }
-    return index2;
+    return result;
   }
   input.set(keys);
-  return index;
+  result.set(index);
+  return result;
 }
 
-function argsortFloat64(input, h) {
+function argsortFloat64(input, result, h, flip, scratch) {
   const n = input.length, m = n >> 1;
   const [varying, varyingh] = histogramFloat64(input, h);
-  if (!varying && !varyingh) return identity(new Uint32Array(m));
-  let keys = new Int32Array(n), index = new Uint32Array(m);
-  let keys2 = new Int32Array(n), index2 = new Uint32Array(m);
+  if (!varying && !varyingh) return identity(result);
+  let keys = scratch(0, Int32Array, n), keys2 = scratch(1, Int32Array, n);
+  let index = scratch(2, Uint32Array, m), index2 = scratch(3, Uint32Array, m);
   if (varying & 0x7ff) {
     accumulate(h, 0, 2048);
     for (let i = 0; i < n; i += 2) {
@@ -566,22 +584,23 @@ function argsortFloat64(input, h) {
       const kh = keys[i + 1], x = ~kh >> 31, j = ++h[10240 + (kh >>> 23)];
       input[j << 1] = keys[i] ^ x;
       input[(j << 1) + 1] = kh ^ (x | 0x80000000);
-      index2[j] = index[i >> 1];
+      result[j] = index[i >> 1];
     }
-    return index2;
+    return result;
   }
   for (let i = 0; i < n; i += 2) {
     const x = ~keys[i + 1] >> 31;
     input[i] = keys[i] ^ x;
     input[i + 1] = keys[i + 1] ^ (x | 0x80000000);
   }
-  return index;
+  result.set(index);
+  return result;
 }
 
-function argsort16(input, h, flip) {
+function argsort16(input, result, h, flip, scratch) {
   const n = input.length, varying = histogram16(input, h, flip);
-  if (!varying) return identity(new Uint32Array(n));
-  const keys = new Uint16Array(n), index = new Uint32Array(n), index2 = new Uint32Array(n);
+  if (!varying) return identity(result);
+  const keys = scratch(0, Uint16Array, n), index = scratch(2, Uint32Array, n);
   if (varying & 0xff) {
     accumulate(h, 0, 256);
     for (let i = 0; i < n; i++) {
@@ -598,17 +617,18 @@ function argsort16(input, h, flip) {
     for (let i = 0; i < n; i++) {
       const k = keys[i], j = ++h[256 + (k >>> 8 ^ flip)];
       input[j] = k;
-      index2[j] = index[i];
+      result[j] = index[i];
     }
-    return index2;
+    return result;
   }
   input.set(keys);
-  return index;
+  result.set(index);
+  return result;
 }
 
 // 8-bit indices are placed by counting values, which are then written back.
-function argsort8(input, h, flip) {
-  const n = input.length, index = new Uint32Array(n);
+function argsort8(input, result, h, flip) {
+  const n = input.length, index = result;
   histogram8(input, h, flip);
   accumulate(h, 0, 256);
   for (let i = 0; i < n; i++) index[++h[input[i] ^ flip]] = i;
@@ -621,11 +641,11 @@ function argsort8(input, h, flip) {
   return index;
 }
 
-// Stable insertion sorts for short arrays, returning the original indices.  For
+// Stable insertion sorts for short arrays, writing the original indices to index.  For
 // 32-bit values, the keys k ^ (k >> 31 & a | b) are compared as unsigned
 // integers, where a and b convert floats or signed integers as for the kernels.
-function insertion32(input, a, b) {
-  const n = input.length, index = new Uint32Array(n);
+function insertion32(input, index, a, b) {
+  const n = input.length;
   for (let i = 0; i < n; i++) {
     const k = input[i], key = (k ^ (k >> 31 & a | b)) >>> 0;
     let j = i - 1;
@@ -643,8 +663,8 @@ function insertion32(input, a, b) {
 
 // Float64 values are pairs of (low, high) words, converted to keys as in
 // sortFloat32 and compared high word first.
-function insertion64(input) {
-  const n = input.length >> 1, index = new Uint32Array(n);
+function insertion64(input, index) {
+  const n = input.length >> 1;
   for (let i = 0; i < n; i++) {
     const k = input[2 * i], kh = input[2 * i + 1], x = kh >> 31;
     const high = (kh ^ (x | 0x80000000)) >>> 0, low = (k ^ x) >>> 0;
@@ -664,20 +684,34 @@ function insertion64(input) {
   return index;
 }
 
-function insertionFloat32(input) {
-  return insertion32(input, -1, 1 << 31);
+function insertionFloat32(input, index) {
+  return insertion32(input, index, -1, 1 << 31);
 }
 
-function insertionInt32(input) {
-  return insertion32(input, 0, 1 << 31);
+function insertionInt32(input, index) {
+  return insertion32(input, index, 0, 1 << 31);
 }
 
-function insertionUint32(input) {
-  return insertion32(input, 0, 0);
+function insertionUint32(input, index) {
+  return insertion32(input, index, 0, 0);
 }
 
 // Sets index[i] = i.
 function identity(index) {
   for (let i = 0; i < index.length; i++) index[i] = i;
   return index;
+}
+
+// Returns scratch(i, type, length), which gives a scratch array from slot i,
+// reusing its buffer while it's still alive: freshly allocated memory can be
+// slow to fault in on some platforms, but holding buffers weakly lets an idle
+// sorter's scratch memory be collected.
+function createScratch() {
+  const refs = [];
+  return function scratch(i, type, length) {
+    const bytes = length * type.BYTES_PER_ELEMENT;
+    let buffer = refs[i]?.deref();
+    if (!(buffer?.byteLength >= bytes)) refs[i] = new WeakRef(buffer = new ArrayBuffer(bytes));
+    return new type(buffer, 0, length);
+  };
 }
