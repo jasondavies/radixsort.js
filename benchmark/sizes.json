@@ -1,102 +1,102 @@
 {
   "node": "v24.21.0",
-  "cpu": "Apple M5 Pro",
+  "cpu": "AMD Ryzen 7 9700X 8-Core Processor",
   "results": [
     {
       "n": 100,
-      "native": 6.568,
-      "previous": 49.287,
-      "current": 6.686
+      "native": 8.543,
+      "previous": 42.978,
+      "current": 8.989
     },
     {
       "n": 200,
-      "native": 7.835,
-      "previous": 26.928,
-      "current": 7.855
+      "native": 10.734,
+      "previous": 24.441,
+      "current": 11.149
     },
     {
       "n": 500,
-      "native": 9.246,
-      "previous": 13.142,
-      "current": 6.551
+      "native": 12.347,
+      "previous": 13.02,
+      "current": 7.327
     },
     {
       "n": 1000,
-      "native": 10.359,
-      "previous": 8.88,
-      "current": 4.796
+      "native": 13.07,
+      "previous": 9.282,
+      "current": 5.708
     },
     {
       "n": 2000,
-      "native": 12.056,
-      "previous": 6.762,
-      "current": 3.975
+      "native": 15.199,
+      "previous": 7.354,
+      "current": 4.872
     },
     {
       "n": 5000,
-      "native": 17.696,
-      "previous": 5.411,
-      "current": 3.347
+      "native": 39.447,
+      "previous": 6.232,
+      "current": 4.393
     },
     {
       "n": 10000,
-      "native": 29.678,
-      "previous": 4.954,
-      "current": 3.194
+      "native": 48.039,
+      "previous": 5.895,
+      "current": 4.271
     },
     {
       "n": 20000,
-      "native": 37.003,
-      "previous": 4.699,
-      "current": 3.11
+      "native": 52.186,
+      "previous": 5.849,
+      "current": 4.273
     },
     {
       "n": 50000,
-      "native": 42.72,
-      "previous": 4.664,
-      "current": 3.11
+      "native": 61.52,
+      "previous": 5.673,
+      "current": 4.179
     },
     {
       "n": 100000,
-      "native": 46.1,
-      "previous": 4.576,
-      "current": 3.033
+      "native": 61.335,
+      "previous": 5.693,
+      "current": 4.354
     },
     {
       "n": 200000,
-      "native": 50.54,
-      "previous": 4.52,
-      "current": 3.163
+      "native": 66.779,
+      "previous": 5.762,
+      "current": 4.366
     },
     {
       "n": 500000,
-      "native": 54.73,
-      "previous": 4.444,
-      "current": 3.141
+      "native": 70.955,
+      "previous": 5.732,
+      "current": 4.418
     },
     {
       "n": 1000000,
-      "native": 58.04,
-      "previous": 4.504,
-      "current": 3.157
+      "native": 74.366,
+      "previous": 5.742,
+      "current": 4.394
     },
     {
       "n": 2000000,
-      "native": 60.294,
-      "previous": 4.463,
-      "current": 3.142
+      "native": 77.837,
+      "previous": 6.146,
+      "current": 4.774
     },
     {
       "n": 5000000,
-      "native": 65.392,
-      "previous": 4.489,
-      "current": 3.23
+      "native": 84.046,
+      "previous": 7.687,
+      "current": 6.228
     },
     {
       "n": 10000000,
-      "native": 67.997,
-      "previous": 4.768,
-      "current": 3.309
+      "native": 86.534,
+      "previous": 8.261,
+      "current": 6.915
     }
   ]
 }

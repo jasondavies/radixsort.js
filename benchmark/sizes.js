@@ -12,6 +12,10 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { radixsort } from '../radixsort.js';
 
+// A seeded pseudo-random number generator, so every run sorts the same data.
+let seed = 1;
+const random = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+
 const sizes = [100, 200, 500, 1e3, 2e3, 5e3, 1e4, 2e4, 5e4, 1e5, 2e5, 5e5, 1e6, 2e6, 5e6, 1e7];
 const script = fileURLToPath(import.meta.url);
 
@@ -39,7 +43,7 @@ if (process.argv[2]) {
 // fresh copies per round so small sizes aren't dominated by timer overhead.
 function measure(n, previous) {
   const data = Float32Array.from({ length: n }, () =>
-    Math.exp((Math.random() - .5) * 100) * (Math.random() < .5 ? 1 : -1));
+    Math.exp((random() - .5) * 100) * (random() < .5 ? 1 : -1));
   const aux = new Float32Array(n), sortPrevious = previous(), sort = radixsort();
   const implementations = {
     native: a => a.sort(),

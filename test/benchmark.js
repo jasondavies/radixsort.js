@@ -4,8 +4,13 @@ import { radixsort } from '../radixsort.js';
 const sort = radixsort();
 const n = 1 << 16;
 const rounds = 100;
+
+// A seeded pseudo-random number generator, so every run sorts the same data.
+let seed = 1;
+const random = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+
 const data = Float32Array.from({ length: n }, () =>
-  Math.exp((Math.random() - .5) * 100) * (Math.random() < .5 ? 1 : -1));
+  Math.exp((random() - .5) * 100) * (random() < .5 ? 1 : -1));
 
 // Sorts a fresh copy each round, since radix sort modifies its input.
 function sortsPerSecond(f) {

@@ -45,18 +45,28 @@ function svg(c) {
     s += `<text x="${x(t)}" y="${plotBottom + 26}" text-anchor="middle" fill="${c.muted}" font-size="15">${label}</text>`;
   }
   s += `<text x="${plotX - 12}" y="${plotTop - 18}" text-anchor="end" fill="${c.muted}" font-size="15">ns</text>`;
-  // The current version is drawn last, so it sits on top.
+  // End labels are spread at least 22px apart, with a leader line to any
+  // label moved away from its line's end.
   const last = results[results.length - 1];
+  const labels = series.map(({ key }) => ({ key, y: y(last[key]) })).sort((a, b) => a.y - b.y);
+  for (let i = 1; i < labels.length; i++) labels[i].y = Math.max(labels[i].y, labels[i - 1].y + 22);
+  const labelY = Object.fromEntries(labels.map(l => [l.key, l.y]));
+  // The current version is drawn last, so it sits on top.
   for (const { key, label } of series) {
     const points = results.map(r => `${x(r.n).toFixed(1)},${y(r[key]).toFixed(1)}`).join(' ');
-    const emphasis = key === 'current';
+    const emphasis = key === 'current', end = y(last[key]);
     s += `<polyline points="${points}" fill="none" stroke="${c[key]}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
-    s += `<circle cx="${x(last.n)}" cy="${y(last[key])}" r="5" fill="${c[key]}" stroke="${c.surface}" stroke-width="2"/>`;
-    s += `<text x="${x(last.n) + 14}" y="${y(last[key]) + 6}" fill="${emphasis ? c.ink : c.ink2}" font-size="16"`
+    if (Math.abs(labelY[key] - end) > 2) {
+      s += `<line x1="${x(last.n) + 6}" y1="${end}" x2="${x(last.n) + 12}" y2="${labelY[key]}" stroke="${c.muted}"/>`;
+    }
+    s += `<circle cx="${x(last.n)}" cy="${end}" r="5" fill="${c[key]}" stroke="${c.surface}" stroke-width="2"/>`;
+    s += `<text x="${x(last.n) + 14}" y="${labelY[key] + 6}" fill="${emphasis ? c.ink : c.ink2}" font-size="16"`
         + ` font-weight="${emphasis ? 600 : 400}">${label}</text>`;
   }
-  // Explain why the current version meets the native sort for small arrays.
-  s += `<line x1="${x(160)}" y1="${y(3.2) - 16}" x2="${x(170)}" y2="${y(7.6) + 6}" stroke="${c.muted}"/>`;
+  // Explain why the current version meets the native sort for small arrays,
+  // pointing to where the two lines meet.
+  const small = results.find(r => r.n === 200);
+  s += `<line x1="${x(160)}" y1="${y(3.2) - 16}" x2="${x(small.n)}" y2="${y(small.current) + 6}" stroke="${c.muted}"/>`;
   s += `<text x="${x(130)}" y="${y(3.2)}" fill="${c.ink2}" font-size="14">Below 320 elements,</text>`;
   s += `<text x="${x(130)}" y="${y(3.2) + 18}" fill="${c.ink2}" font-size="14">2.0 uses the native sort</text>`;
   const legend = (lx, color, label) => `<rect x="${lx}" y="152" width="14" height="14" rx="3" fill="${color}"/>`
@@ -68,7 +78,7 @@ function svg(c) {
 <text x="${pad}" y="${pad + 70}" fill="${c.ink2}" font-size="20">Nanoseconds per element to sort random Float32Array values, by array size (lower is better)</text>
 ${legend(pad, c.current, '2.0')}${legend(pad + 72, c.previous, '1.0.1')}${legend(pad + 158, c.native, 'Native sort')}
 ${s}
-<text x="${pad}" y="${H - pad + 6}" fill="${c.muted}" font-size="15">Node.js ${node.slice(1).split('.')[0]} · ${cpu} · best of 12 rounds · log scales</text>
+<text x="${pad}" y="${H - pad + 6}" fill="${c.muted}" font-size="15">Node.js ${node.slice(1).split('.')[0]} · ${cpu.replace(/ \d+-Core Processor$/, '')} · best of 12 rounds · log scales</text>
 <text x="${W - pad}" y="${H - pad + 6}" text-anchor="end" fill="${c.muted}" font-size="15">github.com/jasondavies/radixsort.js</text>
 </svg>`;
 }
