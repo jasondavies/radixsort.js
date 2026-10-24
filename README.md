@@ -110,20 +110,20 @@ Informal Benchmark
 The most common usage scenario for this will probably be sorting 32-bit floats
 e.g. for geometry algorithms.  My informal benchmark (`npm run benchmark`)
 repeatedly sorts an array of 65,536 random 32-bit floats, comparing against the
-native `Float32Array#sort`.  On Node.js 24:
+native `Float32Array#sort`.  On Node.js 24 on an Apple M5 Pro:
 
- * Radixsort.js: ~**4,300** sorts per second.
- * Radixsort.js `argsort`: ~**3,000** sorts per second.
- * Native sort: ~**340** sorts per second.
+ * Radixsort.js: ~**4,400** sorts per second.
+ * Radixsort.js `argsort`: ~**3,500** sorts per second, reusing its index array.
+ * Native sort: ~**330** sorts per second.
 
 Radixsort.js is roughly **13x** faster!  The speed difference gets even larger
-as you increase the input size, as radix sort's time per element stays flat
-while the native sort's grows.  Small arrays use the native sort, so they're
-no slower:
+as you increase the input size, as radix sort's time per element stays roughly
+flat while the native sort's grows.  Small arrays use the native sort, so
+they're no slower:
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/jasondavies/radixsort.js/v2.0.0/benchmark/sizes-dark.png">
-  <img alt="Line chart of nanoseconds per element to sort random Float32Array values, for 100 to 10 million elements. The native sort rises from about 7 to 68 ns. radixsort.js 1.0.1 starts at 49 ns for 100 elements, falling to 4.5 ns. radixsort.js 2.0 matches the native sort below 320 elements, then falls to a flat 3.1 ns from 10,000 elements." src="https://raw.githubusercontent.com/jasondavies/radixsort.js/v2.0.0/benchmark/sizes-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/jasondavies/radixsort.js/v2.1.0/benchmark/sizes-dark.png">
+  <img alt="Line chart of nanoseconds per element to sort random Float32Array values, for 100 to 10 million elements, on an AMD Ryzen 7 9700X. The native sort rises from about 9 to 87 ns. radixsort.js 1.0.1 starts at 43 ns for 100 elements, falling to about 6 ns, and 8 ns at 10 million. radixsort.js 2.0 matches the native sort below 320 elements, then falls to about 4.3 ns from 10,000 to 1 million elements, and 6.9 ns at 10 million." src="https://raw.githubusercontent.com/jasondavies/radixsort.js/v2.1.0/benchmark/sizes-light.png">
 </picture>
 
 The advantage is smaller for integer types, which the native sort handles
